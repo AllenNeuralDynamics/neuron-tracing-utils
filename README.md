@@ -37,7 +37,7 @@ Prune points that lay outside the image volume
 ```--images``` the folder containing the images on which `.swc`s were traced
 
 
-####3. Refine
+#### 3. Refine
 Medial axis refinement to snap nodes to center of fluorescent signal
 
 ```python refine.py ...```
@@ -71,7 +71,7 @@ A-star search refinement between adjacent nodes to create dense tracings
 
 Either `--voxel-size` or `--transform` must be specified, but not both.
 
-####5. Fill
+#### 5. Fill
 Seeded-volume segmentation to generate masks of the tracings
 
 ```python fill.py ...```
