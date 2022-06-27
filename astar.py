@@ -107,8 +107,8 @@ def astar_swcs(in_swc_dir, out_swc_dir, imdir, transform, swc_type="axon", swc_r
     spacing = transform.scale
     cal = Calibration()
     cal.pixelWidth = spacing[0]
-    cal.pixelDepth = spacing[1]
-    cal.pixelHeight = spacing[2]
+    cal.pixelHeight = spacing[1]
+    cal.pixelDepth = spacing[2]
 
     loader = IJLoader()
 

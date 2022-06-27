@@ -47,8 +47,8 @@ def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, transform, export_labels
     spacing = transform.scale
     cal = Calibration()
     cal.pixelWidth = spacing[0]
-    cal.pixelDepth = spacing[1]
-    cal.pixelHeight = spacing[2]
+    cal.pixelHeight = spacing[1]
+    cal.pixelDepth = spacing[2]
 
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith('.swc')]
