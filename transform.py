@@ -57,7 +57,7 @@ class WorldToVoxel:
         return vox_coords * self.scale + self.origin
 
 
-def transform_swcs(indir, outdir, transform: WorldToVoxel):
+def transform_swcs(indir, outdir, transform: WorldToVoxel, forward):
     for root, dirs, files in os.walk(indir):
         for f in files:
             if not f.endswith(".swc"):
@@ -66,7 +66,10 @@ def transform_swcs(indir, outdir, transform: WorldToVoxel):
             outswc = os.path.join(outdir, os.path.relpath(swc, indir))
             Path(outswc).parent.mkdir(exist_ok=True, parents=True)
             arr = swcutil.swc_to_ndarray(swc, True)
-            arr[:, 2:5] = transform.forward(arr[:, 2:5])
+            if forward:
+                arr[:, 2:5] = transform.forward(arr[:, 2:5])
+            else:
+                arr[:, 2:5] = transform.back(arr[:, 2:5])
             swcutil.ndarray_to_swc(arr, outswc)
 
 
@@ -76,17 +79,22 @@ def main():
     parser.add_argument('--input', type=str, help='directory of .swc files to transform')
     parser.add_argument('--output', type=str,  help='directory to output transformed .swc files')
     parser.add_argument('--transform', type=str, help='path to the \"transform.txt\" file')
-    parser.add_argument("--log-level", type=int, default=logging.INFO)
+    parser.add_argument('--to-world', default=False, action='store_true')
+    parser.add_argument('--log-level', type=int, default=logging.INFO)
 
     args = parser.parse_args()
 
     logging.basicConfig(format='%(asctime)s %(message)s')
     logging.getLogger().setLevel(args.log_level)
 
+    forward = True
+    if args.to_world:
+        forward = False
+
     um2vx = WorldToVoxel(args.transform)
 
     logging.info("Starting transform...")
-    transform_swcs(args.input, args.output, um2vx)
+    transform_swcs(args.input, args.output, um2vx, forward)
     logging.info("Finished transform.")
 
 
