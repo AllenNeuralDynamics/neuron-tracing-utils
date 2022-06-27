@@ -3,14 +3,12 @@ import logging
 import os
 from pathlib import Path
 
+from javahelpers import snt, imglib2
+import sntutil
+import imgutil
+
 import scyjava
 from jpype import JArray, JLong
-
-from . import sntutil
-from . import imgutil
-
-from . import snt
-from . import imglib2
 
 
 def refine_point(swc_point, img, sphere_radius=1, region_shape="block", region_pad=None):

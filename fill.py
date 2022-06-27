@@ -3,13 +3,10 @@ import ast
 import logging
 import os
 
-from . import imagej1
-from . import snt
-from . import imglib2
-from . import n5
-from . import java
-from .transform import WorldToVoxel
+from javahelpers import imagej1, n5, snt, imglib2
+from transform import WorldToVoxel
 
+import jpype.imports  # necessary to import from java
 import imglyb
 import scyjava
 import tifffile
@@ -26,11 +23,14 @@ def fill_paths(pathlist, img, cost, threshold, calibration):
 
 
 def save_n5(filepath, img, dataset="volume", block_size=None):
+    from java.lang import Runtime
+    from java.util.concurrent import Executors
+
     if block_size is None:
         block_size = [64, 64, 64]
     n5Writer = n5.N5FSWriter(filepath)
     logging.info("Saving N5...")
-    exec = java.Executors.newFixedThreadPool(java.Runtime.getRuntime().availableProcessors())
+    exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
     n5.N5Utils.save(img, n5Writer, dataset, block_size, n5.GzipCompression(6), exec)
     exec.shutdown()
     logging.info("Finished saving N5.")

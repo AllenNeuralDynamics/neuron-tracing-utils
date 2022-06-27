@@ -3,8 +3,7 @@ import logging
 import argparse
 from pathlib import Path
 
-from . import snt
-
+from javahelpers import snt
 import zarr
 import scyjava
 import tifffile

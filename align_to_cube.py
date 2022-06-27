@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from . import swcutil
+import swcutil
 
 
 def _align_to_cube(in_swc_dir, out_swc_dir):

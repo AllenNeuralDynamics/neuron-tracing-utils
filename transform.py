@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from . import swcutil
+import swcutil
 
 import numpy as np
 

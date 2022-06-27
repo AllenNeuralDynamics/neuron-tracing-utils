@@ -4,12 +4,9 @@ import logging
 import os
 from pathlib import Path
 
-from . import imagej1
-from . import snt
-from . import imglib2
-
-from . import sntutil
-from .transform import WorldToVoxel
+import sntutil
+from javahelpers import imagej1, snt, imglib2
+from transform import WorldToVoxel
 
 import scyjava
 import numpy as np

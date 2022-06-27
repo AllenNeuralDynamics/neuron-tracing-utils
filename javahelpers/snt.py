@@ -20,6 +20,8 @@ def _java_setup():
     Tree = scyjava.jimport("sc.fiji.snt.Tree")
     global ImgUtils
     ImgUtils = scyjava.jimport("sc.fiji.snt.util.ImgUtils")
+    global SNTUtils
+    SNTUtils = scyjava.jimport("sc.fiji.snt.SNTUtils")
     global SNT
     SNT = scyjava.jimport("sc.fiji.snt.SNT")
     global OneMinusErf
