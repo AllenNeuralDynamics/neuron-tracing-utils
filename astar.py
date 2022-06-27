@@ -1,4 +1,5 @@
 import argparse
+import ast
 import logging
 import os
 from pathlib import Path
@@ -99,16 +100,9 @@ def astar_graph(graph, img, calibration):
         graph.addEdge(tmp, target)
 
 
-def astar_swcs(in_swc_dir, out_swc_dir, imdir, transform, swc_type="axon", swc_radius=1.0):
-    Calibration = imagej1.Calibration
+def astar_swcs(in_swc_dir, out_swc_dir, imdir, calibration, swc_type="axon", swc_radius=1.0):
     IJLoader = imglib2.IJLoader
     Tree = snt.Tree
-
-    spacing = transform.scale
-    cal = Calibration()
-    cal.pixelWidth = spacing[0]
-    cal.pixelHeight = spacing[1]
-    cal.pixelDepth = spacing[2]
 
     loader = IJLoader()
 
@@ -127,7 +121,7 @@ def astar_swcs(in_swc_dir, out_swc_dir, imdir, transform, swc_type="axon", swc_r
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
             graph = Tree(in_swc).getGraph()
-            astar_graph(graph, img, cal)
+            astar_graph(graph, img, calibration)
             tree = graph.getTree()
             # Set a non-zero radius.
             # Some programs (JWS) fail to import .swc files with radii == 0
@@ -142,6 +136,7 @@ def main():
     parser.add_argument('--output', type=str,  help='directory to output refined .swc files')
     parser.add_argument('--images', type=str, help='directory of images associated with the .swc files')
     parser.add_argument('--transform', type=str, help='path to the \"transform.txt\" file')
+    parser.add_argument('--voxel-size', type=str, help="voxel size for images")
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -151,10 +146,19 @@ def main():
 
     scyjava.start_jvm()
 
-    transform = WorldToVoxel(args.transform)
+    calibration = imagej1.Calibration()
+    if args.transform is not None:
+        voxel_size = WorldToVoxel(args.transform).scale
+    elif args.voxel_size is not None:
+        voxel_size = ast.literal_eval(args.voxel_size)
+    else:
+        raise ValueError("Either --transform or --voxel-size must be specified.")
+    calibration.pixelWidth = voxel_size[0]
+    calibration.pixelHeight = voxel_size[1]
+    calibration.pixelDepth = voxel_size[2]
 
     logging.info("Starting A-star...")
-    astar_swcs(args.input, args.output, args.images, transform)
+    astar_swcs(args.input, args.output, args.images, calibration)
     logging.info("Finished A-star.")
 
 

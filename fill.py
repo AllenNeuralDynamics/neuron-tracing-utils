@@ -1,4 +1,5 @@
 import argparse
+import ast
 import logging
 import os
 
@@ -35,20 +36,13 @@ def save_n5(filepath, img, dataset="volume", block_size=None):
     logging.info("Finished saving N5.")
 
 
-def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, transform, export_labels=True, export_gray=True):
-    Calibration = imagej1.Calibration
+def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, cal, export_labels=True, export_gray=True):
     Tree = snt.Tree
     Reciprocal = snt.Reciprocal
     FillConverter = snt.FillConverter
     DiskCachedCellImgFactory = imglib2.DiskCachedCellImgFactory
     UnsignedShortType = imglib2.UnsignedShortType
     UnsignedByteType = imglib2.UnsignedByteType
-
-    spacing = transform.scale
-    cal = Calibration()
-    cal.pixelWidth = spacing[0]
-    cal.pixelHeight = spacing[1]
-    cal.pixelDepth = spacing[2]
 
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith('.swc')]
@@ -97,6 +91,7 @@ def main():
     parser.add_argument('--images', type=str, help='directory of images associated with the .swc files')
     parser.add_argument("--threshold", type=float, default=0.05, help="distance threshold for fill algorithm")
     parser.add_argument('--transform', type=str, help='path to the \"transform.txt\" file')
+    parser.add_argument("--voxel-size", type=str, help="voxel size of images")
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -109,9 +104,18 @@ def main():
     if not os.path.isdir(args.output):
         os.makedirs(args.output, exist_ok=True)
 
-    um2vx = WorldToVoxel(args.transform)
+    calibration = imagej1.Calibration()
+    if args.transform is not None:
+        voxel_size = WorldToVoxel(args.transform).scale
+    elif args.voxel_size is not None:
+        voxel_size = ast.literal_eval(args.voxel_size)
+    else:
+        raise ValueError("Either --transform or --voxel-size must be specified.")
+    calibration.pixelWidth = voxel_size[0]
+    calibration.pixelHeight = voxel_size[1]
+    calibration.pixelDepth = voxel_size[2]
 
-    fill_swcs(args.input, args.images, args.output, args.threshold, um2vx)
+    fill_swcs(args.input, args.images, args.output, args.threshold, calibration)
 
 
 if __name__ == "__main__":
