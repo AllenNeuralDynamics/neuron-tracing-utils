@@ -5,24 +5,92 @@ conda activate refinery
 ```
 
 ### Typical Workflow
-1. Transform Janelia workstation created .swc files from world to voxel coordinates
+#### 1. Transform 
 
-```python -m refinery.transform ...```
+Transform Janelia workstation-created `.swc` files from world to voxel coordinates and back
 
-2. Prune points that lay outside the image volume
+```python transform.py ...```
 
-```python -m refinery.prune ...```
+***arguments***:
 
-3. Medial axis refinement to snap points to center of fluorescent signal
+```--input``` the folder containing `.swc` files to transform
 
-```python -m refinery.refine ...```
+```--output``` the folder to export transformed `.swc` files
 
-4. A-star search refinement between adjacent points to create dense tracings
+```--transform``` path to the `transform.txt` file for the sample used to create the `.swc` files 
 
-```python -m refinery.astar ...```
+```--to-voxel``` TODO
 
-5. Seeded-volume segmentation
+```--to-world``` TODO
 
-```python -m refinery.fill ...```
+#### 2. Prune
+Prune points that lay outside the image volume
+
+```python prune.py ...```
+
+***arguments***:
+
+```--input``` the folder containing `.swc` files to prune
+
+```--output``` the folder to export pruned `.swc` files
+
+```--images``` the folder containing the images on which `.swc`s were traced
+
+
+####3. Refine
+Medial axis refinement to snap nodes to center of fluorescent signal
+
+```python refine.py ...```
+
+***arguments***:
+
+```--input``` the folder containing `.swc` files to refine
+
+```--output``` the folder to export refined `.swc` files
+
+```--images``` the folder containing the images on which `.swc`s were traced
+
+```--mode``` TODO
+
+#### 4. A-star
+A-star search refinement between adjacent nodes to create dense tracings
+
+```python astar.py ...```
+
+***arguments***:
+
+```--input``` the folder containing `.swc` files to refine
+
+```--output``` the folder to export refined `.swc` files
+
+```--images``` the folder containing the images on which `.swc`s were traced
+
+```--transform``` path to the `transform.txt` file for the sample used to create the SWCs
+
+```--voxel-size``` voxel spacing for the images on which .swcs were traced
+
+Either `--voxel-size` or `--transform` must be specified, but not both.
+
+####5. Fill
+Seeded-volume segmentation to generate masks of the tracings
+
+```python fill.py ...```
+
+***arguments***:
+
+```--input``` the folder containing `.swc` files to refine
+
+```--output``` the folder to export refined `.swc` files
+
+```--images``` the folder containing the images on which `.swc`s were traced
+
+```--threshold``` distance threshold for the filling algorithm (must be > 0)
+
+```--transform``` path to the `transform.txt` file for the sample used to create the `.swc`s
+
+```--voxel-size``` voxel spacing for the images on which `.swc`s were traced
+
+Either `--voxel-size` or `--transform` must be specified, but not both.
+
 
 
