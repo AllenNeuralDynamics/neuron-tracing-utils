@@ -13,7 +13,7 @@ from skimage.draw import line
 from skimage.color import gray2rgb
 
 
-def render_swcs(swc_dir, im_dir, out_mip_dir, vmin=12000, vmax=15000):
+def render_swcs(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith('.swc')]
         if not swcs:
@@ -51,6 +51,8 @@ def main():
     parser.add_argument('--input', type=str, help='directory of .swc files to render')
     parser.add_argument('--output', type=str,  help='directory to output MIPs')
     parser.add_argument('--images', type=str, help='directory of images associated with the .swc files')
+    parser.add_argument('--vmin', type=float, default=0.0, help='minimum intensity of the desired display range')
+    parser.add_argument('--vmax', type=float, default=65535.0, help="maximum intensity of the desired display range")
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -63,7 +65,7 @@ def main():
 
     scyjava.start_jvm()
 
-    render_swcs(args.input, args.images, args.output)
+    render_swcs(args.input, args.images, args.output, args.vmin, args.vmax)
 
 
 if __name__ == "__main__":
