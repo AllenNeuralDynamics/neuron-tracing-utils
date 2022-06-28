@@ -2,7 +2,6 @@
 
 from setuptools import setup, find_packages
 
-# Load module version from ovr/version.py
 exec(open('src/refinery/version.py').read())
 
 setup(

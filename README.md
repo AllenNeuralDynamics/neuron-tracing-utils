@@ -5,14 +5,14 @@ conda activate refinery
 cd refinery
 pip install .
 ```
-
+To use the command-line entry points below, make sure the conda environment is active.
 ### Typical Workflow
 #### 1. Transform 
 
 Transform Janelia workstation-created `.swc` files from world to voxel coordinates and back
 
 ```shell
-python transform.py --input="/path/to/input_swcs" --output="/path/to/output_swcs" --transform="/path/to/transform.txt"  
+transform --input="/path/to/input_swcs" --output="/path/to/output_swcs" --transform="/path/to/transform.txt"  
 ```
 
 ***arguments***:
@@ -31,7 +31,7 @@ python transform.py --input="/path/to/input_swcs" --output="/path/to/output_swcs
 Prune points that lay outside the image volume
 
 ```shell
-python prune.py --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images"
+prune --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images"
 ```
 
 ***arguments***:
@@ -50,7 +50,7 @@ python prune.py --input="/path/to/input_swcs" --output="/path/to/output_swcs" --
 Medial axis refinement to snap nodes to center of fluorescent signal
 
 ```shell
-python refine.py --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images"
+refine --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images"
 ```
 
 ***arguments***:
@@ -69,7 +69,7 @@ python refine.py --input="/path/to/input_swcs" --output="/path/to/output_swcs" -
 A-star search refinement between adjacent nodes to create dense tracings
 
 ```shell
-python astar.py --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images" --voxel-size="0.3,0.3,1.0"
+astar --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images" --voxel-size="0.3,0.3,1.0"
 ```
 
 ***arguments***:
@@ -92,7 +92,7 @@ Either `--voxel-size` or `--transform` must be specified, but not both.
 Seeded-volume segmentation to generate masks of the tracings
 
 ```shell
-python fill.py --input="/path/to/input_swcs" --output="/path/to/output_masks" --images="/path/to/input_images" --threshold=0.03 --voxel-size="0.3,0.3,1.0"
+fill --input="/path/to/input_swcs" --output="/path/to/output_masks" --images="/path/to/input_images" --threshold=0.03 --voxel-size="0.3,0.3,1.0"
 ```
 
 ***arguments***:
@@ -119,7 +119,7 @@ Either `--voxel-size` or `--transform` must be specified, but not both.
 Render maximum intensity projections of images along with projected tracings
 
 ```shell
-python render_mips.py --input="/path/to/input_swcs" --output="/path/to/output_MIPs" --images="/path/to/input_images" --vmin=12000 --vmax=15000
+render_mips --input="/path/to/input_swcs" --output="/path/to/output_MIPs" --images="/path/to/input_images" --vmin=12000 --vmax=15000
 ```
 
 ***arguments***
