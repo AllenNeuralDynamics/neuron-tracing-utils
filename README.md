@@ -17,11 +17,9 @@ Transform Janelia workstation-created `.swc` files from world to voxel coordinat
 
 ```--output``` the folder to export transformed `.swc` files
 
-```--transform``` path to the `transform.txt` file for the sample used to create the `.swc` files 
+```--transform``` path to the `transform.txt` file for the sample used to create the `.swc` files
 
-```--to-voxel``` TODO
-
-```--to-world``` TODO
+```--to-world``` convert from voxel coordinates to JWS world coordinates
 
 #### 2. Prune
 Prune points that lay outside the image volume
@@ -91,6 +89,24 @@ Seeded-volume segmentation to generate masks of the tracings
 ```--voxel-size``` voxel spacing for the images on which `.swc`s were traced
 
 Either `--voxel-size` or `--transform` must be specified, but not both.
+
+#### Misc.
+
+Render maximum intensity projections of images along with projected tracings
+
+```python render_mips.py ...```
+
+***arguments***
+
+```--input``` the folder containing `.swc` files to render
+
+```--output``` the folder to export MIPs
+
+```--images``` the folder containing the images on which `.swc`s were traced
+
+```--vmin``` minimum intensity of the desired display range
+
+```--vmax``` maximum intensity of the desired display range
 
 
 
