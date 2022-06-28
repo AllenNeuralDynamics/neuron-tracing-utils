@@ -86,9 +86,7 @@ def main():
     logging.basicConfig(format='%(asctime)s %(message)s')
     logging.getLogger().setLevel(args.log_level)
 
-    forward = True
-    if args.to_world:
-        forward = False
+    forward = not args.to_world
 
     um2vx = WorldToVoxel(args.transform)
 
