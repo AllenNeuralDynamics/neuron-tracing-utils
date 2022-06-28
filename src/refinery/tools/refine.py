@@ -47,21 +47,23 @@ def refine_graph(graph, img, radius=1):
 
 
 def refine_swcs(in_swc_dir, out_swc_dir, imdir):
+    loader = imglib2.IJLoader()
     for root, dirs, files in os.walk(in_swc_dir):
-        for f in files:
-            if not f.endswith(".swc"):
-                continue
-            tiff = os.path.join(imdir, os.path.basename(root) + ".tif")
-            loader = imglib2.IJLoader()
-            img = loader.get(tiff)
-            swc = os.path.join(root, f)
-            logging.info(f"Refining {swc}")
-            outswc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
-            Path(outswc).parent.mkdir(exist_ok=True, parents=True)
-            graph = snt.Tree(swc).getGraph()
+        swcs = [f for f in files if f.endswith('.swc')]
+        for f in swcs:
+            swc_path = os.path.join(root, f)
+            logging.info(f"Refining {swc_path}")
+
+            graph = snt.Tree(swc_path).getGraph()
+
+            img = loader.get(os.path.join(imdir, os.path.basename(root) + ".tif"))
+
             refine_graph(graph, img, radius=1)
+
+            out_swc = os.path.join(out_swc_dir, os.path.relpath(swc_path, in_swc_dir))
+            Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
             tree = graph.getTree()
-            tree.saveAsSWC(outswc)
+            tree.saveAsSWC(out_swc)
 
 
 def main():

@@ -104,11 +104,9 @@ def astar_swcs(in_swc_dir, out_swc_dir, imdir, calibration, swc_type="axon", swc
     loader = IJLoader()
 
     for root, dirs, files in os.walk(in_swc_dir):
-        for f in files:
-            if not f.endswith(".swc"):
-                continue
-            img_name = os.path.basename(root) + ".tif"
-            tiff = os.path.join(imdir, img_name)
+        swcs = [f for f in files if f.endswith('.swc')]
+        for f in swcs:
+            tiff = os.path.join(imdir, os.path.basename(root) + ".tif")
             img = loader.get(tiff)
 
             in_swc = os.path.join(root, f)

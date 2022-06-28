@@ -12,22 +12,23 @@ def _align_to_cube(in_swc_dir, out_swc_dir):
     in the "cube.swc" file"""
 
     for root, dirs, files in os.walk(in_swc_dir):
-        if not files:
+        swcs = [f for f in files if f.endswith('.swc')]
+        if not swcs:
             continue
-        cube_swc = [f for f in files if f.startswith("cube")][0]
+
+        cube_swc = next(f for f in swcs if f.startswith("cube"))
+        swcs.remove(cube_swc)
         cube_arr = swcutil.swc_to_ndarray(os.path.join(root, cube_swc))
         origin = cube_arr[0, 2:5]
-        for f in files:
-            if not f.endswith(".swc"):
-                continue
-            if "cube" in f:
-                continue
-            swc = os.path.join(root, f)
-            outswc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
-            Path(outswc).parent.mkdir(exist_ok=True, parents=True)
-            arr = swcutil.swc_to_ndarray(swc, True)
+
+        for f in swcs:
+            swc_path = os.path.join(root, f)
+            arr = swcutil.swc_to_ndarray(swc_path, True)
             arr[:, 2:5] -= origin
-            swcutil.ndarray_to_swc(arr, outswc)
+
+            out_swc = os.path.join(out_swc_dir, os.path.relpath(swc_path, in_swc_dir))
+            Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
+            swcutil.ndarray_to_swc(arr, out_swc)
 
 
 def main():

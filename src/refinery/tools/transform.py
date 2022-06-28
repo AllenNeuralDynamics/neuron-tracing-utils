@@ -59,13 +59,12 @@ class WorldToVoxel:
 
 def transform_swcs(indir, outdir, transform: WorldToVoxel, forward):
     for root, dirs, files in os.walk(indir):
-        for f in files:
-            if not f.endswith(".swc"):
-                continue
-            swc = os.path.join(root, f)
-            outswc = os.path.join(outdir, os.path.relpath(swc, indir))
+        swcs = [f for f in files if f.endswith('.swc')]
+        for f in swcs:
+            swc_path = os.path.join(root, f)
+            outswc = os.path.join(outdir, os.path.relpath(swc_path, indir))
             Path(outswc).parent.mkdir(exist_ok=True, parents=True)
-            arr = swcutil.swc_to_ndarray(swc, True)
+            arr = swcutil.swc_to_ndarray(swc_path, True)
             if forward:
                 arr[:, 2:5] = transform.forward(arr[:, 2:5])
             else:

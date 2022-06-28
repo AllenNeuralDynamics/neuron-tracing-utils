@@ -1,6 +1,7 @@
 from ..javahelpers import snt, imglib2
 from . import chunkutil
 from . import imgutil
+from . import miscutil
 
 import numpy as np
 
@@ -56,11 +57,12 @@ def swcpoint_to_block(img, swcpoint, side_lengths):
 def point_neighborhood(img, swcpoint, radius=1, pad=None, shape="sphere"):
     if pad is None:
         pad = [1, 1, 1]
-    region = None
     if shape == "sphere":
         region = swcpoint_to_sphere(img, swcpoint, radius)
     elif shape == "block":
         region = swcpoint_to_block(img, swcpoint, pad)
+    else:
+        raise ValueError(f"Invalid shape {shape}")
     return imgutil.local_intensities(region)
 
 
@@ -69,7 +71,7 @@ def resample_path(path, node_spacing, degree=1):
     if path_length <= node_spacing:
         return path
     points = path_to_ndarray(path)
-    resampled = util.resample(points, node_spacing, degree)
+    resampled = miscutil.resample(points, node_spacing, degree)
     respath = path.createPath()
     for p in resampled:
         respath.addNode(snt.PointInImage(p[0], p[1], p[2]))

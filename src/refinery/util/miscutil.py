@@ -5,8 +5,8 @@ import scyjava
 
 from ..javahelpers import n5
 from ..javahelpers import imagej1, imglib2
-import chunkutil
-import swcutil
+from . import chunkutil
+from . import swcutil
 from ..tools.transform import WorldToVoxel
 
 import numpy as np

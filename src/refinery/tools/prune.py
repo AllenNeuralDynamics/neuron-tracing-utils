@@ -34,18 +34,15 @@ def prune_graph(g, mini, maxi):
 
 def prune_swcs(in_swc_dir, out_swc_dir, imdir):
     for root, dirs, files in os.walk(in_swc_dir):
-        for f in files:
-            if not f.endswith(".swc"):
-                continue
-
-            img_name = os.path.basename(root) + ".tif"
-            tiff = os.path.join(imdir, img_name)
+        swcs = [f for f in files if f.endswith('.swc')]
+        for f in swcs:
+            tiff = os.path.join(imdir, os.path.basename(root) + ".tif")
             img_shape = get_tiff_shape(tiff)
 
             swc = os.path.join(root, f)
             print(f"pruning {swc}")
-            outswc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
-            Path(outswc).parent.mkdir(exist_ok=True, parents=True)
+            out_swc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
+            Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
             graph = snt.Tree(swc).getGraph()
 
@@ -60,7 +57,7 @@ def prune_swcs(in_swc_dir, out_swc_dir, imdir):
 
             trees = [c.getTree() for c in graph.getComponents()]
             for i, t in enumerate(trees):
-                t.saveAsSWC(outswc.replace(".swc", f"-{i}.swc"))
+                t.saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
 
 
 def main():

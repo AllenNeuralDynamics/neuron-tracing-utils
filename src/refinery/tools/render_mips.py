@@ -19,11 +19,9 @@ def render_swcs(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
         if not swcs:
             continue
         img_name = os.path.basename(root)
-        tiff = os.path.join(im_dir, img_name + ".tif")
-        img = tifffile.imread(tiff)
+        img = tifffile.imread(os.path.join(im_dir, img_name + ".tif"))
         img_rescale = exposure.rescale_intensity(img, in_range=(vmin, vmax))
-        img_mip = np.max(img_rescale, axis=0)
-        mip_rgb = gray2rgb(img_mip)
+        mip_rgb = gray2rgb(np.max(img_rescale, axis=0))
         for f in swcs:
             swc = os.path.join(root, f)
             graph = snt.Tree(swc).getGraph()
