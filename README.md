@@ -1,7 +1,9 @@
 ### Setup
 ```shell
-conda create -n refinery -c conda-forge imglyb numpy scipy tifffile zarr scikit-image
+conda create -n refinery -c conda-forge imglyb
 conda activate refinery
+cd refinery
+pip install .
 ```
 
 ### Typical Workflow

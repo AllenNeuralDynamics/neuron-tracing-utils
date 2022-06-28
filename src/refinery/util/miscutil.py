@@ -3,10 +3,11 @@ import os
 
 import scyjava
 
-from javahelpers import imagej1, n5, imglib2
+from ..javahelpers import n5
+from ..javahelpers import imagej1, imglib2
 import chunkutil
 import swcutil
-from transform import WorldToVoxel
+from ..tools.transform import WorldToVoxel
 
 import numpy as np
 from scipy.interpolate import splprep, splev

@@ -3,9 +3,8 @@ import logging
 import os
 from pathlib import Path
 
-from javahelpers import snt, imglib2
-import sntutil
-import imgutil
+from ..javahelpers import snt, imglib2
+from ..util import sntutil, imgutil
 
 import scyjava
 from jpype import JArray, JLong

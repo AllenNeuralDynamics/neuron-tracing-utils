@@ -1,4 +1,4 @@
-from javahelpers import imglib2
+from refinery.javahelpers import imglib2
 
 import numpy as np
 

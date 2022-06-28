@@ -3,10 +3,11 @@ import ast
 import logging
 import os
 
-from javahelpers import imagej1, n5, snt, imglib2
-from transform import WorldToVoxel
+from ..javahelpers import n5
+from ..javahelpers import imagej1, snt, imglib2
+from .transform import WorldToVoxel
 
-import jpype.imports  # necessary to import from java
+import jpype.imports
 import imglyb
 import scyjava
 import tifffile
@@ -59,7 +60,7 @@ def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, cal, export_labels=True,
         maxi = np.max(im)
         cost = Reciprocal(mean, maxi)
 
-        # Wrap ndarray as imglib2 Img, using shared memory
+        # Wrap ndarray as imglib2 Img, using util memory
         # keep the reference in scope until the object is safe to be garbage collected
         img, ref_store = imglyb.as_cell_img(im, chunk_shape=(64, 64, 64), cache=100)
 

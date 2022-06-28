@@ -1,7 +1,6 @@
-from javahelpers import snt, imglib2
-import chunkutil
-import imgutil
-import util
+from ..javahelpers import snt, imglib2
+from . import chunkutil
+from . import imgutil
 
 import numpy as np
 
