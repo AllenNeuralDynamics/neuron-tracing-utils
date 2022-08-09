@@ -52,7 +52,7 @@ def prune_swcs(in_swc_dir, out_swc_dir, imdir):
             prune_graph(graph, mini, maxi)
             print(f"{num_points_before - graph.vertexSet().size()} points pruned")
 
-            if graph.vertexSet().isEmpty():
+            if graph.vertexSet().size() <= 1:
                 continue
 
             trees = [c.getTree() for c in graph.getComponents()]
