@@ -57,7 +57,7 @@ class WorldToVoxel:
         return vox_coords * self.scale + self.origin
 
 
-def transform_swcs(indir, outdir, transform: WorldToVoxel, forward):
+def transform_swcs(indir, outdir, transform: WorldToVoxel, forward, swap_xy):
     for root, dirs, files in os.walk(indir):
         swcs = [f for f in files if f.endswith('.swc')]
         for f in swcs:
@@ -69,6 +69,10 @@ def transform_swcs(indir, outdir, transform: WorldToVoxel, forward):
                 arr[:, 2:5] = transform.forward(arr[:, 2:5])
             else:
                 arr[:, 2:5] = transform.back(arr[:, 2:5])
+
+            if swap_xy:
+                arr[:, [2, 3]] = arr[:, [3, 2]]
+
             swcutil.ndarray_to_swc(arr, outswc)
 
 
@@ -80,6 +84,7 @@ def main():
     parser.add_argument('--transform', type=str, help='path to the \"transform.txt\" file')
     parser.add_argument('--to-world', default=False, action='store_true')
     parser.add_argument('--log-level', type=int, default=logging.INFO)
+    parser.add_argument("--swap-xy", default=False, action="store_true")
 
     args = parser.parse_args()
 
@@ -91,7 +96,7 @@ def main():
     um2vx = WorldToVoxel(args.transform)
 
     logging.info("Starting transform...")
-    transform_swcs(args.input, args.output, um2vx, forward)
+    transform_swcs(args.input, args.output, um2vx, forward, args.swap_xy)
     logging.info("Finished transform.")
 
 
