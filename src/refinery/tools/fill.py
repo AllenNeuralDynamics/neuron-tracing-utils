@@ -37,7 +37,7 @@ def save_n5(filepath, img, dataset="volume", block_size=None):
     logging.info("Finished saving N5.")
 
 
-def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, cal, export_labels=True, export_gray=True):
+def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, cal, export_labels=True, export_gray=True, as_n5=False):
     Tree = snt.Tree
     Reciprocal = snt.Reciprocal
     FillConverter = snt.FillConverter
@@ -73,16 +73,46 @@ def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, cal, export_labels=True,
         converter = FillConverter(filler_threads)
 
         if export_gray:
-            gray_mask = DiskCachedCellImgFactory(UnsignedShortType()).create(
+            mask = DiskCachedCellImgFactory(UnsignedShortType()).create(
                 img.dimensionsAsLongArray())
-            converter.convert(img, gray_mask)
-            save_n5(os.path.join(out_mask_dir, img_name + '_Fill_Gray_Mask.n5'), gray_mask)
+            converter.convert(img, mask)
+            mask_name = img_name + '_Fill_Gray_Mask.n5'
+            save_mask(mask, out_mask_dir, mask_name, as_n5)
 
         if export_labels:
-            label_mask = DiskCachedCellImgFactory(UnsignedByteType()).create(
+            mask = DiskCachedCellImgFactory(UnsignedByteType()).create(
                 img.dimensionsAsLongArray())
-            converter.convertLabels(label_mask)
-            save_n5(os.path.join(out_mask_dir, img_name + '_Fill_Label_Mask.n5'), label_mask)
+            converter.convertLabels(mask)
+            mask_name = img_name + '_Fill_Label_Mask.n5'
+            save_mask(mask, out_mask_dir, mask_name, as_n5)
+
+
+def save_mask(mask, mask_dir, mask_name, as_n5=False):
+    Views = imglib2.Views
+    IJ = imagej1.IJ
+    ImageJFunctions = imglib2.ImageJFunctions
+
+    mask_path = os.path.join(mask_dir, mask_name)
+
+    if as_n5:
+        save_n5(mask_path, mask)
+    else:
+        # ImageJ treats the 3rd dimension as channel instead of depth,
+        # so add a dummy Z dimension to the end (XYCZ) and swap dimensions 2 and 3 (XYZC).
+        # Opening this image in ImageJ will then show the correct axis type (XYZ)
+        imp = ImageJFunctions.wrap(
+            Views.permute(
+                Views.addDimension(
+                    mask,
+                    0,
+                    0
+                ),
+                2,
+                3
+            ),
+            ""
+        )
+        IJ.saveAsTiff(imp, mask_path)
 
 
 def main():
@@ -94,6 +124,7 @@ def main():
     parser.add_argument('--transform', type=str, help='path to the \"transform.txt\" file')
     parser.add_argument("--voxel-size", type=str, help="voxel size of images")
     parser.add_argument("--log-level", type=int, default=logging.INFO)
+    parser.add_argument("--n5", default=False, action="store_true", help="save masks as n5. Otherwise, save as Tiff.")
 
     args = parser.parse_args()
 
@@ -116,7 +147,8 @@ def main():
     calibration.pixelHeight = voxel_size[1]
     calibration.pixelDepth = voxel_size[2]
 
-    fill_swcs(args.input, args.images, args.output, args.threshold, calibration)
+    fill_swcs(args.input, args.images, args.output, args.threshold, calibration, export_labels=True, export_gray=True,
+              as_n5=args.n5)
 
 
 if __name__ == "__main__":
