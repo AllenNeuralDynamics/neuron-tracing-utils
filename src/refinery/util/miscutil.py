@@ -22,7 +22,7 @@ def resample(points, node_spacing, degree=1):
     ss = np.power(diff, 2).sum(axis=1)
     length = np.sqrt(ss).sum()
     quo, rem = divmod(length, node_spacing)
-    sampl = np.linspace(0, 0 + (node_spacing * (quo + 1)), int(quo + 1), endpoint=False)
+    sampl = np.linspace(0, node_spacing * (quo + 1), int(quo + 1), endpoint=False)
     samples = np.append(sampl, sampl[-1] + rem)
     # Queries along the spline must be in range [0, 1]
     query_points = np.clip(samples / max(samples), a_min=0.0, a_max=1.0)

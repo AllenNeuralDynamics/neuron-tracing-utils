@@ -2,6 +2,10 @@ import scyjava
 
 
 def _java_setup():
+    """
+    Lazy initialization function for Java-dependent data structures.
+    Do not call this directly; use scyjava.start_jvm() instead.
+    """
     global N5FSReader
     N5FSReader = scyjava.jimport("org.janelia.saalfeldlab.n5.N5FSReader")
     global N5FSWriter
