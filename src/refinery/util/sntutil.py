@@ -70,8 +70,8 @@ def resample_path(path, node_spacing, degree=1):
     path_length = path.getLength()
     if path_length <= node_spacing:
         return path
-    points = path_to_ndarray(path)
-    resampled = miscutil.resample(points, node_spacing, degree)
+    path_points = path_to_ndarray(path)
+    resampled = miscutil.resample(path_points, node_spacing, degree)
     respath = path.createPath()
     for p in resampled:
         respath.addNode(snt.PointInImage(p[0], p[1], p[2]))

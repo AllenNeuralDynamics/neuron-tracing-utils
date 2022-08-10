@@ -27,7 +27,8 @@ setup(
             'refine=refinery.tools.refine:main',
             'astar=refinery.tools.astar:main',
             'fill=refinery.tools.fill:main',
-            'render_mips=refinery.tools.render_mips:main'
+            'render_mips=refinery.tools.render_mips:main',
+            'resample=refinery.tools.resample:main',
         ]},
     classifiers=[],
 )

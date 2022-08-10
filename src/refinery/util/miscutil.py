@@ -14,9 +14,10 @@ from scipy.interpolate import splprep, splev
 
 
 def resample(points, node_spacing, degree=1):
-    # _, ind = np.unique(points, axis=0, return_index=True)
+    # remove duplicate nodes
+    _, ind = np.unique(points, axis=0, return_index=True)
     # Maintain input order
-    # points = points[np.sort(ind)]
+    points = points[np.sort(ind)]
     # Determine number of query points and their parameters
     diff = np.diff(points, axis=0, prepend=points[-1].reshape((1, -1)))
     ss = np.power(diff, 2).sum(axis=1)
