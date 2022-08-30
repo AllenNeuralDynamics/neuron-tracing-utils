@@ -5,8 +5,7 @@ from pathlib import Path
 
 import scyjava
 
-from ..javahelpers import snt
-from ..util import sntutil
+from ..util import sntutil, swcutil
 
 
 def resample_tree(tree, node_spacing, degree=1):
@@ -80,9 +79,11 @@ def resample_swcs(indir, outdir, node_spacing):
                 continue
             out_swc = os.path.join(outdir, os.path.relpath(swc_path, indir))
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
-            tree = snt.Tree(swc_path)
+            arr = swcutil.swc_to_ndarray(swc_path, add_offset=True)
+            tree = sntutil.ndarray_to_graph(arr).getTree()
             # resample the tree in-place
             resample_tree(tree, node_spacing)
+            tree.setRadii(1.0)
             tree.saveAsSWC(out_swc)
 
 
