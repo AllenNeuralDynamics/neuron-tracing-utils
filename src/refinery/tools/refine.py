@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from ..javahelpers import snt, imglib2
+from ..javahelpers import snt, imglib2, imagej1
 from ..util import sntutil, imgutil
 
 import scyjava
@@ -46,24 +46,44 @@ def refine_graph(graph, img, radius=1):
         refine_point(v, img, radius)
 
 
-def refine_swcs(in_swc_dir, out_swc_dir, imdir):
+def fit_tree(tree, img, radius=1):
+    PathFitter = snt.PathFitter
+    for path in tree.list():
+        fitter = PathFitter(img, path)
+        fitter.setScope(PathFitter.RADII_AND_MIDPOINTS)
+        fitter.setReplaceNodes(True)
+        fitter.setMaxRadius(radius)
+        fitter.call()
+
+
+def refine_swcs(in_swc_dir, out_swc_dir, imdir, radius=1, mode='fit'):
     loader = imglib2.IJLoader()
+    IJ = imagej1.IJ
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith('.swc')]
         for f in swcs:
             swc_path = os.path.join(root, f)
             logging.info(f"Refining {swc_path}")
 
-            graph = snt.Tree(swc_path).getGraph()
-
-            img = loader.get(os.path.join(imdir, os.path.basename(root) + ".tif"))
-
-            refine_graph(graph, img, radius=1)
-
             out_swc = os.path.join(out_swc_dir, os.path.relpath(swc_path, in_swc_dir))
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
-            tree = graph.getTree()
-            tree.saveAsSWC(out_swc)
+
+            tree = snt.Tree(swc_path)
+
+            if mode == "naive":
+                img = loader.get(os.path.join(imdir, os.path.basename(root) + ".tif"))
+                graph = tree.getGraph()
+                refine_graph(graph, img, radius)
+                graph.getTree().saveAsSWC(out_swc)
+            elif mode == "fit":
+                # Versions prior to 4.04 only accept ImagePlus inputs
+                # this will be orders of magnitude slower than it should be
+                # until SNT versions >= 4.0.4 are available on the scijava maven repository
+                imp = IJ.openImage(os.path.join(imdir, os.path.basename(root) + ".tif"))
+                fit_tree(tree, imp)
+                tree.saveAsSWC(out_swc)
+            else:
+                raise ValueError(f"Invalid mode {mode}")
 
 
 def main():
@@ -71,6 +91,8 @@ def main():
     parser.add_argument('--input', type=str, help='directory of .swc files to refine')
     parser.add_argument('--output', type=str,  help='directory to output refined .swc files')
     parser.add_argument('--images', type=str, help='directory of images associated with the .swc files')
+    parser.add_argument("--mode", choices=["naive", "fit"], default="naive", help="algorithm type")
+    parser.add_argument("--radius", type=int, default=1, help="search radius for point refinement")
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -81,7 +103,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting refinement...")
-    refine_swcs(args.input, args.output, args.images)
+    refine_swcs(args.input, args.output, args.images, args.radius, args.mode)
     logging.info("Finished refinement.")
 
 

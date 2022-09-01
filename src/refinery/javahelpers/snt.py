@@ -40,6 +40,8 @@ def _java_setup():
     FillConverter = scyjava.jimport("sc.fiji.snt.FillConverter")
     global TreeAnalyzer
     TreeAnalyzer = scyjava.jimport("sc.fiji.snt.analysis.TreeAnalyzer")
+    global PathFitter
+    PathFitter = scyjava.jimport("sc.fiji.snt.PathFitter")
 
 
 scyjava.when_jvm_starts(_java_setup)
