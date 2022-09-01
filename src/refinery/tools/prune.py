@@ -2,6 +2,7 @@ import os
 import logging
 import argparse
 from pathlib import Path
+from collections import Counter
 
 from ..javahelpers import snt
 import zarr
@@ -55,9 +56,39 @@ def prune_swcs(in_swc_dir, out_swc_dir, imdir):
             if graph.vertexSet().size() <= 1:
                 continue
 
-            trees = [c.getTree() for c in graph.getComponents()]
-            for i, t in enumerate(trees):
-                t.saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
+            components = get_components_iterative(graph)
+            for i, c in enumerate(components):
+                if c.vertexSet().size() <= 1:
+                    continue
+                c.getTree().saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
+
+
+def get_components_iterative(graph):
+    roots = [v for v in graph.vertexSet() if graph.inDegreeOf(v) == 0]
+    components = []
+    for root in roots:
+        # create an empty graph
+        comp = snt.DirectedWeightedGraph()
+        # iterative depth-first search
+        stack = [root]
+        while stack:
+            v = stack.pop()
+            comp.addVertex(v)
+            out_edges = graph.outgoingEdgesOf(v)
+            for edge in out_edges:
+                child = edge.getTarget()
+                comp.addVertex(child)
+                comp.addEdge(v, child)
+                stack.append(child)
+        components.append(comp)
+
+    # verify correctness of algorithm
+    # expected_components = graph.getComponents()
+    # expected_sizes = [c.vertexSet().size() for c in expected_components]
+    # actual_sizes = [c.vertexSet().size() for c in components]
+    # assert Counter(expected_sizes) == Counter(actual_sizes)
+
+    return components
 
 
 def main():
@@ -65,7 +96,7 @@ def main():
                                                  "If a vertex of degree > 1 is pruned, this will break connectivity"
                                                  "and result in additional .swc outputs.")
     parser.add_argument('--input', type=str, help='directory of .swc files to prune')
-    parser.add_argument('--output', type=str,  help='directory to output pruned .swc files')
+    parser.add_argument('--output', type=str, help='directory to output pruned .swc files')
     parser.add_argument('--images', type=str, help='directory of images associated with the .swc files')
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
