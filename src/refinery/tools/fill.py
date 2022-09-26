@@ -2,6 +2,7 @@ import argparse
 import ast
 import logging
 import os
+from enum import Enum
 
 from ..javahelpers import n5
 from ..javahelpers import imagej1, snt, imglib2
@@ -12,6 +13,13 @@ import imglyb
 import scyjava
 import tifffile
 import numpy as np
+
+
+class Cost(Enum):
+    """Enum for cost functions a user can select"""
+
+    reciprocal = "reciprocal"
+    one_minus_erf = "one-minus-erf"
 
 
 def fill_paths(pathlist, img, cost, threshold, calibration):
@@ -37,9 +45,27 @@ def save_n5(filepath, img, dataset="volume", block_size=None):
     logging.info("Finished saving N5.")
 
 
-def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, cal, export_labels=True, export_gray=True, as_n5=False):
-    Tree = snt.Tree
+def get_cost(im, cost_str):
     Reciprocal = snt.Reciprocal
+    OneMinusErf = snt.OneMinusErf
+
+    if cost_str == Cost.reciprocal.value:
+        mean = np.mean(im)
+        maxi = np.max(im)
+        cost = Reciprocal(mean, maxi)
+    elif cost_str == Cost.one_minus_erf.value:
+        mean = np.mean(im)
+        maxi = np.max(im)
+        stddev = np.std(im)
+        cost = OneMinusErf(maxi, mean, stddev)
+    else:
+        raise ValueError(f"Invalid cost {cost_str}")
+
+    return cost
+
+
+def fill_swcs(swc_dir, im_dir, out_mask_dir, cost_str, threshold, cal, export_labels=True, export_gray=True, as_n5=False):
+    Tree = snt.Tree
     FillConverter = snt.FillConverter
     DiskCachedCellImgFactory = imglib2.DiskCachedCellImgFactory
     UnsignedShortType = imglib2.UnsignedShortType
@@ -55,10 +81,7 @@ def fill_swcs(swc_dir, im_dir, out_mask_dir, threshold, cal, export_labels=True,
         logging.info(f"Generating masks for {tiff}")
         im = tifffile.imread(tiff)
 
-        # Compute statistics over the block to feed cost function
-        mean = np.mean(im)
-        maxi = np.max(im)
-        cost = Reciprocal(mean, maxi)
+        cost = get_cost(im, cost_str)
 
         # Wrap ndarray as imglib2 Img, using util memory
         # keep the reference in scope until the object is safe to be garbage collected
@@ -93,25 +116,13 @@ def save_mask(mask, mask_dir, mask_name, as_n5=False):
     ImageJFunctions = imglib2.ImageJFunctions
 
     mask_path = os.path.join(mask_dir, mask_name)
-
     if as_n5:
         save_n5(mask_path, mask)
     else:
         # ImageJ treats the 3rd dimension as channel instead of depth,
         # so add a dummy Z dimension to the end (XYCZ) and swap dimensions 2 and 3 (XYZC).
         # Opening this image in ImageJ will then show the correct axis type (XYZ)
-        imp = ImageJFunctions.wrap(
-            Views.permute(
-                Views.addDimension(
-                    mask,
-                    0,
-                    0
-                ),
-                2,
-                3
-            ),
-            ""
-        )
+        imp = ImageJFunctions.wrap(Views.permute(Views.addDimension(mask, 0, 0), 2, 3), "")
         IJ.saveAsTiff(imp, mask_path)
 
 
@@ -123,6 +134,13 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.05, help="distance threshold for fill algorithm")
     parser.add_argument('--transform', type=str, help='path to the \"transform.txt\" file')
     parser.add_argument("--voxel-size", type=str, help="voxel size of images")
+    parser.add_argument(
+        "--cost",
+        type=str,
+        choices=[Cost.reciprocal.value, Cost.one_minus_erf.value],
+        default=Cost.reciprocal.value,
+        help="cost function for the Dijkstra search"
+    )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
     parser.add_argument("--n5", default=False, action="store_true", help="save masks as n5. Otherwise, save as Tiff.")
 
@@ -147,7 +165,7 @@ def main():
     calibration.pixelHeight = voxel_size[1]
     calibration.pixelDepth = voxel_size[2]
 
-    fill_swcs(args.input, args.images, args.output, args.threshold, calibration, export_labels=True, export_gray=True,
+    fill_swcs(args.input, args.images, args.output, args.cost, args.threshold, calibration, export_labels=True, export_gray=True,
               as_n5=args.n5)
 
 
