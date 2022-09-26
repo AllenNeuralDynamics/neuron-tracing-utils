@@ -2,7 +2,6 @@ from refinery.util.java import snt
 from refinery.util.java import imglib2
 from refinery.util import chunkutil
 from refinery.util import imgutil
-from refinery.util import miscutil
 
 import numpy as np
 
@@ -65,15 +64,3 @@ def point_neighborhood(img, swcpoint, radius=1, pad=None, shape="sphere"):
     else:
         raise ValueError(f"Invalid shape {shape}")
     return imgutil.local_intensities(region)
-
-
-def resample_path(path, node_spacing, degree=1):
-    path_length = path.getLength()
-    if path_length <= node_spacing:
-        return path
-    path_points = path_to_ndarray(path)
-    resampled = miscutil.resample(path_points, node_spacing, degree)
-    respath = path.createPath()
-    for p in resampled:
-        respath.addNode(snt.PointInImage(p[0], p[1], p[2]))
-    return respath

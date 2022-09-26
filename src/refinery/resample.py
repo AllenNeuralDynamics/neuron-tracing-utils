@@ -3,9 +3,12 @@ import logging
 import os
 from pathlib import Path
 
+import numpy as np
 import scyjava
+from scipy.interpolate import splprep, splev
 
 from refinery.util import sntutil, swcutil
+from refinery.util.java import snt
 
 
 def resample_tree(tree, node_spacing, degree=1):
@@ -32,7 +35,7 @@ def resample_tree(tree, node_spacing, degree=1):
     paths = list(tree.list())
     for path in paths:
         # Get a resampled version of the path
-        resampled = sntutil.resample_path(path, node_spacing, degree)
+        resampled = resample_path(path, node_spacing, degree)
         # Add it to the tree.
         # Note we have not specified any connections yet,
         # so this is just a single un-branched segment.
@@ -85,6 +88,38 @@ def resample_swcs(indir, outdir, node_spacing):
             resample_tree(tree, node_spacing)
             tree.setRadii(1.0)
             tree.saveAsSWC(out_swc)
+
+
+def resample_path(path, node_spacing, degree=1):
+    path_length = path.getLength()
+    if path_length <= node_spacing:
+        return path
+    path_points = sntutil.path_to_ndarray(path)
+    resampled = _resample(path_points, node_spacing, degree)
+    respath = path.createPath()
+    for p in resampled:
+        respath.addNode(snt.PointInImage(p[0], p[1], p[2]))
+    return respath
+
+
+def _resample(points, node_spacing, degree=1):
+    # remove duplicate nodes
+    _, ind = np.unique(points, axis=0, return_index=True)
+    # Maintain input order
+    points = points[np.sort(ind)]
+    # Determine number of query points and their parameters
+    diff = np.diff(points, axis=0, prepend=points[-1].reshape((1, -1)))
+    ss = np.power(diff, 2).sum(axis=1)
+    length = np.sqrt(ss).sum()
+    quo, rem = divmod(length, node_spacing)
+    samples = np.linspace(0, node_spacing * quo, int(quo+1))
+    if rem != 0:
+        samples = np.append(samples, samples[-1] + rem)
+    # Queries along the spline must be in range [0, 1]
+    query_points = np.clip(samples / max(samples), a_min=0.0, a_max=1.0)
+    # Create spline points and evaluate at queries
+    tck, _ = splprep(points.T, k=degree)
+    return np.array(splev(query_points, tck)).T
 
 
 def main():

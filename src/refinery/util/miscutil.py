@@ -13,26 +13,6 @@ import numpy as np
 from scipy.interpolate import splprep, splev
 
 
-def resample(points, node_spacing, degree=1):
-    # remove duplicate nodes
-    _, ind = np.unique(points, axis=0, return_index=True)
-    # Maintain input order
-    points = points[np.sort(ind)]
-    # Determine number of query points and their parameters
-    diff = np.diff(points, axis=0, prepend=points[-1].reshape((1, -1)))
-    ss = np.power(diff, 2).sum(axis=1)
-    length = np.sqrt(ss).sum()
-    quo, rem = divmod(length, node_spacing)
-    samples = np.linspace(0, node_spacing * quo, int(quo+1))
-    if rem != 0:
-        samples = np.append(samples, samples[-1] + rem)
-    # Queries along the spline must be in range [0, 1]
-    query_points = np.clip(samples / max(samples), a_min=0.0, a_max=1.0)
-    # Create spline points and evaluate at queries
-    tck, _ = splprep(points.T, k=degree)
-    return np.array(splev(query_points, tck)).T
-
-
 def crop_img_from_swcs(img, swc_folder, output_image_dir, transform, add_offset=True, output_aligned_swcs=True):
     Views = imglib2.Views
     ImageJFunctions = imglib2.ImageJFunctions
