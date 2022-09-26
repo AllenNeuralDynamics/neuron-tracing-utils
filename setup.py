@@ -23,7 +23,7 @@ setup(
         'console_scripts': [
             'transform=refinery.tools.transform:main',
             'align_to_cube=refinery.tools.align_to_cube:main',
-            'prune=refinery.tools.prune:main',
+            'fix_swcs=refinery.tools.fix_swcs:main',
             'refine=refinery.tools.refine:main',
             'astar=refinery.tools.astar:main',
             'fill=refinery.tools.fill:main',

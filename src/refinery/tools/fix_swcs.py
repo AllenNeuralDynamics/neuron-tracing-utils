@@ -2,7 +2,6 @@ import os
 import logging
 import argparse
 from pathlib import Path
-from collections import Counter
 
 from ..javahelpers import snt
 import zarr
@@ -33,7 +32,19 @@ def prune_graph(g, mini, maxi):
     g.removeAllVertices(to_remove)
 
 
-def prune_swcs(in_swc_dir, out_swc_dir, imdir):
+def clip_graph(g, mini, maxi):
+    for v in g.vertexSet():
+        point = np.array([v.getX(), v.getY(), v.getZ()])
+        clipped = np.clip(point, mini, maxi)
+        if not np.array_equal(point, clipped):
+            logging.info(f"input coords: {point}")
+            logging.info(f"adjusted coords: {clipped}")
+            v.x = clipped[0]
+            v.y = clipped[1]
+            v.z = clipped[2]
+
+
+def prune_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith('.swc')]
         for f in swcs:
@@ -41,7 +52,7 @@ def prune_swcs(in_swc_dir, out_swc_dir, imdir):
             img_shape = get_tiff_shape(tiff)
 
             swc = os.path.join(root, f)
-            print(f"pruning {swc}")
+            logging.info(f"fixing {swc}")
             out_swc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
@@ -50,8 +61,13 @@ def prune_swcs(in_swc_dir, out_swc_dir, imdir):
             mini = np.array([0, 0, 0])
             maxi = img_shape - 1
             num_points_before = graph.vertexSet().size()
-            prune_graph(graph, mini, maxi)
-            print(f"{num_points_before - graph.vertexSet().size()} points pruned")
+            if mode == "prune":
+                prune_graph(graph, mini, maxi)
+                logging.info(f"{num_points_before - graph.vertexSet().size()} points pruned")
+            elif mode == "clip":
+                clip_graph(graph, mini, maxi)
+            else:
+                raise ValueError(f"Invalid mode {mode}")
 
             if graph.vertexSet().size() <= 1:
                 continue
@@ -82,12 +98,6 @@ def get_components_iterative(graph):
                 stack.append(child)
         components.append(comp)
 
-    # verify correctness of algorithm
-    # expected_components = graph.getComponents()
-    # expected_sizes = [c.vertexSet().size() for c in expected_components]
-    # actual_sizes = [c.vertexSet().size() for c in components]
-    # assert Counter(expected_sizes) == Counter(actual_sizes)
-
     return components
 
 
@@ -114,4 +124,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
