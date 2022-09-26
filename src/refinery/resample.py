@@ -5,7 +5,7 @@ from pathlib import Path
 
 import scyjava
 
-from ..util import sntutil, swcutil
+from refinery.util import sntutil, swcutil
 
 
 def resample_tree(tree, node_spacing, degree=1):

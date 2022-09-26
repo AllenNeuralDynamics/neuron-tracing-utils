@@ -3,7 +3,8 @@ import logging
 import os
 from pathlib import Path
 
-from ..javahelpers import snt
+from refinery.util.java import snt
+
 import scyjava
 import tifffile
 import numpy as np

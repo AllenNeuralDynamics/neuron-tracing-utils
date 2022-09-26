@@ -1,7 +1,8 @@
-from ..javahelpers import snt, imglib2
-from . import chunkutil
-from . import imgutil
-from . import miscutil
+from refinery.util.java import snt
+from refinery.util.java import imglib2
+from refinery.util import chunkutil
+from refinery.util import imgutil
+from refinery.util import miscutil
 
 import numpy as np
 

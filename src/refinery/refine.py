@@ -3,8 +3,9 @@ import logging
 import os
 from pathlib import Path
 
-from ..javahelpers import snt, imglib2, imagej1
-from ..util import sntutil, imgutil
+from refinery.util.java import snt
+from refinery.util.java import imglib2, imagej1
+from refinery.util import sntutil, imgutil
 
 import scyjava
 from jpype import JArray, JLong

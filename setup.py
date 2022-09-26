@@ -21,14 +21,14 @@ setup(
     python_requires=">=3.7.0",
     entry_points={
         'console_scripts': [
-            'transform=refinery.tools.transform:main',
-            'align_to_cube=refinery.tools.align_to_cube:main',
-            'fix_swcs=refinery.tools.fix_swcs:main',
-            'refine=refinery.tools.refine:main',
-            'astar=refinery.tools.astar:main',
-            'fill=refinery.tools.fill:main',
-            'render_mips=refinery.tools.render_mips:main',
-            'resample=refinery.tools.resample:main',
+            'transform=refinery.transform:main',
+            'align_to_cube=refinery.align_to_cube:main',
+            'fix_swcs=refinery.fix_swcs:main',
+            'refine=refinery.refine:main',
+            'astar=refinery.astar:main',
+            'fill=refinery.fill:main',
+            'render_mips=refinery.render_mips:main',
+            'resample=refinery.resample:main',
         ]},
     classifiers=[],
 )

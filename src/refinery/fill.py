@@ -4,11 +4,11 @@ import logging
 import os
 from enum import Enum
 
-from ..javahelpers import n5
-from ..javahelpers import imagej1, snt, imglib2
-from .transform import WorldToVoxel
+from refinery.util.java import n5
+from refinery.util.java import snt
+from refinery.util.java import imglib2, imagej1
+from refinery.transform import WorldToVoxel
 
-import jpype.imports
 import imglyb
 import scyjava
 import tifffile

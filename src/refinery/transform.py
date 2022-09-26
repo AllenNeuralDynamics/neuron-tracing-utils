@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from ..util import swcutil
+from refinery.util import swcutil
 
 import numpy as np
 

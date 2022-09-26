@@ -3,7 +3,7 @@ import logging
 import argparse
 from pathlib import Path
 
-from ..javahelpers import snt
+from refinery.util.java import snt
 import zarr
 import scyjava
 import tifffile
@@ -117,9 +117,9 @@ def main():
 
     scyjava.start_jvm()
 
-    logging.info("Starting prune...")
+    logging.info("Starting fix...")
     prune_swcs(args.input, args.output, args.images)
-    logging.info("Finished prune.")
+    logging.info("Finished fix.")
 
 
 if __name__ == "__main__":
