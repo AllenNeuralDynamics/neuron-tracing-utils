@@ -44,7 +44,7 @@ def clip_graph(g, mini, maxi):
             v.z = clipped[2]
 
 
-def prune_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
+def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith('.swc')]
         for f in swcs:
@@ -118,7 +118,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting fix...")
-    prune_swcs(args.input, args.output, args.images)
+    fix_swcs(args.input, args.output, args.images)
     logging.info("Finished fix.")
 
 
