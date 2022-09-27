@@ -5,7 +5,7 @@ _snt_version = os.getenv(
     "SNT_VERSION", _default_snt_version
 )
 
-_default_fiji_version = "2.5.0"
+_default_fiji_version = "2.9.0"
 _fiji_version = os.getenv(
     "FIJI_VERSION", _default_fiji_version
 )
