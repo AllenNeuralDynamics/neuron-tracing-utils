@@ -62,7 +62,7 @@ def resample_tree(tree, node_spacing, degree=1):
                 start_joins_point.getX(),
                 start_joins_point.getY(),
                 start_joins_point.getZ(),
-                float("inf")  # within this distance
+                float("inf"),  # within this distance
             )
             closest_point = resampled.getNode(closest_idx)
             # Now unlink the child from the input path
@@ -75,7 +75,7 @@ def resample_tree(tree, node_spacing, degree=1):
 
 def resample_swcs(indir, outdir, node_spacing):
     for root, dirs, files in os.walk(indir):
-        swcs = [f for f in files if f.endswith('.swc')]
+        swcs = [f for f in files if f.endswith(".swc")]
         for f in swcs:
             swc_path = os.path.join(root, f)
             if not os.path.isfile(swc_path):
@@ -112,7 +112,7 @@ def _resample(points, node_spacing, degree=1):
     ss = np.power(diff, 2).sum(axis=1)
     length = np.sqrt(ss).sum()
     quo, rem = divmod(length, node_spacing)
-    samples = np.linspace(0, node_spacing * quo, int(quo+1))
+    samples = np.linspace(0, node_spacing * quo, int(quo + 1))
     if rem != 0:
         samples = np.append(samples, samples[-1] + rem)
     # Queries along the spline must be in range [0, 1]
@@ -123,26 +123,32 @@ def _resample(points, node_spacing, degree=1):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Resample .swc files to have even spacing between consecutive nodes")
-    parser.add_argument('--input', type=str, help='directory of .swc files to resample')
-    parser.add_argument('--output', type=str, help='directory to output resampled .swc files')
+    parser = argparse.ArgumentParser(
+        description="Resample .swc files to have even spacing between consecutive nodes"
+    )
+    parser.add_argument(
+        "--input", type=str, help="directory of .swc files to resample"
+    )
+    parser.add_argument(
+        "--output", type=str, help="directory to output resampled .swc files"
+    )
     parser.add_argument(
         "--spacing",
         type=float,
         default=5.0,
         help="target spacing between consecutive pairs of points,"
-             " in spatial units given by the SWC. For example, "
-             "if your SWCs are represented in micrometers,"
-             "use micrometers. If they are in pixels, use pixels, etc."
+        " in spatial units given by the SWC. For example, "
+        "if your SWCs are represented in micrometers,"
+        "use micrometers. If they are in pixels, use pixels, etc.",
     )
-    parser.add_argument('--log-level', type=int, default=logging.INFO)
+    parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
 
     if args.spacing <= 0:
         raise ValueError("--spacing must be > 0")
 
-    logging.basicConfig(format='%(asctime)s %(message)s')
+    logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)
 
     scyjava.start_jvm()

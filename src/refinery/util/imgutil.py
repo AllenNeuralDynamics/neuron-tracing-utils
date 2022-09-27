@@ -3,6 +3,7 @@ import jpype.imports
 # FIXME this would probably be a lot faster within Java
 def local_intensities(imglib_iterable):
     import java.lang
+
     cursor = imglib_iterable.cursor()
     while cursor.hasNext():
         cursor.fwd()

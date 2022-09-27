@@ -7,13 +7,17 @@ def _java_setup():
     Do not call this directly; use scyjava.start_jvm() instead.
     """
     global ImageJFunctions
-    ImageJFunctions = scyjava.jimport("net.imglib2.img.display.imagej.ImageJFunctions")
+    ImageJFunctions = scyjava.jimport(
+        "net.imglib2.img.display.imagej.ImageJFunctions"
+    )
     global IJLoader
     IJLoader = scyjava.jimport("net.imglib2.img.io.IJLoader")
     global ImgView
     ImgView = scyjava.jimport("net.imglib2.img.ImgView")
     global HyperSphere
-    HyperSphere = scyjava.jimport("net.imglib2.algorithm.region.hypersphere.HyperSphere")
+    HyperSphere = scyjava.jimport(
+        "net.imglib2.algorithm.region.hypersphere.HyperSphere"
+    )
     global Intervals
     Intervals = scyjava.jimport("net.imglib2.util.Intervals")
     global ArrayImgFactory
@@ -23,17 +27,25 @@ def _java_setup():
     global Views
     Views = scyjava.jimport("net.imglib2.view.Views")
     global ComputeMinMax
-    ComputeMinMax = scyjava.jimport("net.imglib2.algorithm.stats.ComputeMinMax")
+    ComputeMinMax = scyjava.jimport(
+        "net.imglib2.algorithm.stats.ComputeMinMax"
+    )
     global BitType
     BitType = scyjava.jimport("net.imglib2.type.logic.BitType")
     global DoubleType
     DoubleType = scyjava.jimport("net.imglib2.type.numeric.real.DoubleType")
     global DiskCachedCellImgFactory
-    DiskCachedCellImgFactory = scyjava.jimport("net.imglib2.cache.img.DiskCachedCellImgFactory")
+    DiskCachedCellImgFactory = scyjava.jimport(
+        "net.imglib2.cache.img.DiskCachedCellImgFactory"
+    )
     global UnsignedShortType
-    UnsignedShortType = scyjava.jimport("net.imglib2.type.numeric.integer.UnsignedShortType")
+    UnsignedShortType = scyjava.jimport(
+        "net.imglib2.type.numeric.integer.UnsignedShortType"
+    )
     global UnsignedByteType
-    UnsignedByteType = scyjava.jimport("net.imglib2.type.numeric.integer.UnsignedByteType")
+    UnsignedByteType = scyjava.jimport(
+        "net.imglib2.type.numeric.integer.UnsignedByteType"
+    )
     global Point
     Point = scyjava.jimport("net.imglib2.Point")
     global LoopBuilder

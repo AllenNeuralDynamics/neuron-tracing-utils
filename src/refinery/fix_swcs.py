@@ -16,7 +16,7 @@ def get_tiff_shape(tiffpath):
         # ImageJ hyperstacks.
         # tifffile.TiffFile is unable to parse Z-slices with ImageJ
         # Tiffs larger than 4GB.
-        z = zarr.open(tif.aszarr(), 'r')
+        z = zarr.open(tif.aszarr(), "r")
         shape = np.array([s for s in z.shape])
         # rearrange to XYZ
         axes = [2, 1, 0]
@@ -46,14 +46,16 @@ def clip_graph(g, mini, maxi):
 
 def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
     for root, dirs, files in os.walk(in_swc_dir):
-        swcs = [f for f in files if f.endswith('.swc')]
+        swcs = [f for f in files if f.endswith(".swc")]
         for f in swcs:
             tiff = os.path.join(imdir, os.path.basename(root) + ".tif")
             img_shape = get_tiff_shape(tiff)
 
             swc = os.path.join(root, f)
             logging.info(f"fixing {swc}")
-            out_swc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
+            out_swc = os.path.join(
+                out_swc_dir, os.path.relpath(swc, in_swc_dir)
+            )
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
             graph = snt.Tree(swc).getGraph()
@@ -63,7 +65,9 @@ def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
             num_points_before = graph.vertexSet().size()
             if mode == "prune":
                 prune_graph(graph, mini, maxi)
-                logging.info(f"{num_points_before - graph.vertexSet().size()} points pruned")
+                logging.info(
+                    f"{num_points_before - graph.vertexSet().size()} points pruned"
+                )
             elif mode == "clip":
                 clip_graph(graph, mini, maxi)
             else:
@@ -102,17 +106,27 @@ def get_components_iterative(graph):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prune vertices that lay outside the bounds of the image. "
-                                                 "If a vertex of degree > 1 is pruned, this will break connectivity"
-                                                 "and result in additional .swc outputs.")
-    parser.add_argument('--input', type=str, help='directory of .swc files to prune')
-    parser.add_argument('--output', type=str, help='directory to output pruned .swc files')
-    parser.add_argument('--images', type=str, help='directory of images associated with the .swc files')
+    parser = argparse.ArgumentParser(
+        description="Prune vertices that lay outside the bounds of the image. "
+        "If a vertex of degree > 1 is pruned, this will break connectivity"
+        "and result in additional .swc outputs."
+    )
+    parser.add_argument(
+        "--input", type=str, help="directory of .swc files to prune"
+    )
+    parser.add_argument(
+        "--output", type=str, help="directory to output pruned .swc files"
+    )
+    parser.add_argument(
+        "--images",
+        type=str,
+        help="directory of images associated with the .swc files",
+    )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
 
-    logging.basicConfig(format='%(asctime)s %(message)s')
+    logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)
 
     scyjava.start_jvm()

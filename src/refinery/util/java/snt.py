@@ -13,7 +13,9 @@ def _java_setup():
     global PointInImage
     PointInImage = scyjava.jimport("sc.fiji.snt.util.PointInImage")
     global DirectedWeightedGraph
-    DirectedWeightedGraph = scyjava.jimport("sc.fiji.snt.analysis.graph.DirectedWeightedGraph")
+    DirectedWeightedGraph = scyjava.jimport(
+        "sc.fiji.snt.analysis.graph.DirectedWeightedGraph"
+    )
     global Graphs
     Graphs = scyjava.jimport("org.jgrapht.Graphs")
     global Tree
@@ -25,13 +27,13 @@ def _java_setup():
     global SNT
     SNT = scyjava.jimport("sc.fiji.snt.SNT")
     global OneMinusErf
-    OneMinusErf = scyjava.jimport('sc.fiji.snt.tracing.cost.OneMinusErf')
+    OneMinusErf = scyjava.jimport("sc.fiji.snt.tracing.cost.OneMinusErf")
     global Reciprocal
-    Reciprocal = scyjava.jimport('sc.fiji.snt.tracing.cost.Reciprocal')
+    Reciprocal = scyjava.jimport("sc.fiji.snt.tracing.cost.Reciprocal")
     global Dijkstra
-    Dijkstra = scyjava.jimport('sc.fiji.snt.tracing.heuristic.Dijkstra')
+    Dijkstra = scyjava.jimport("sc.fiji.snt.tracing.heuristic.Dijkstra")
     global Euclidean
-    Euclidean = scyjava.jimport('sc.fiji.snt.tracing.heuristic.Euclidean')
+    Euclidean = scyjava.jimport("sc.fiji.snt.tracing.heuristic.Euclidean")
     global BiSearch
     BiSearch = scyjava.jimport("sc.fiji.snt.tracing.BiSearch")
     global FillerThread
@@ -45,4 +47,3 @@ def _java_setup():
 
 
 scyjava.when_jvm_starts(_java_setup)
-

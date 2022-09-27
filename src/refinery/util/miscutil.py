@@ -10,10 +10,16 @@ from refinery.util import swcutil
 from refinery.transform import WorldToVoxel
 
 import numpy as np
-from scipy.interpolate import splprep, splev
 
 
-def crop_img_from_swcs(img, swc_folder, output_image_dir, transform, add_offset=True, output_aligned_swcs=True):
+def crop_img_from_swcs(
+    img,
+    swc_folder,
+    output_image_dir,
+    transform,
+    add_offset=True,
+    output_aligned_swcs=True,
+):
     Views = imglib2.Views
     ImageJFunctions = imglib2.ImageJFunctions
     Intervals = imglib2.Intervals
@@ -23,7 +29,9 @@ def crop_img_from_swcs(img, swc_folder, output_image_dir, transform, add_offset=
     names = []
     for f in os.listdir(swc_folder):
         if os.path.isfile(os.path.join(swc_folder, f)) and f.endswith(".swc"):
-            swc_arr = swcutil.swc_to_ndarray(os.path.join(swc_folder, f), add_offset)
+            swc_arr = swcutil.swc_to_ndarray(
+                os.path.join(swc_folder, f), add_offset
+            )
             names.append(swcutil.path_to_name(f))
             arrs.append(swc_arr)
 
@@ -35,17 +43,18 @@ def crop_img_from_swcs(img, swc_folder, output_image_dir, transform, add_offset=
     bbmax = bbmax.astype(int)
 
     chunk_metadata = {}
-    chunk_metadata['chunk_origin'] = bbmin.tolist()
-    chunk_metadata['chunk_shape'] = (bbmax - bbmin + 1).tolist()
-    chunk_metadata['voxel_spacing'] = transform.scale.tolist()
+    chunk_metadata["chunk_origin"] = bbmin.tolist()
+    chunk_metadata["chunk_shape"] = (bbmax - bbmin + 1).tolist()
+    chunk_metadata["voxel_spacing"] = transform.scale.tolist()
 
     interval = Intervals.createMinMax(
-        bbmin[0], bbmin[1], bbmin[2],
-        bbmax[0], bbmax[1], bbmax[2]
+        bbmin[0], bbmin[1], bbmin[2], bbmax[0], bbmax[1], bbmax[2]
     )
     block = Views.interval(img, interval)
 
-    imp = ImageJFunctions.wrap(Views.permute(Views.addDimension(block, 0, 0), 2, 3), "Img")
+    imp = ImageJFunctions.wrap(
+        Views.permute(Views.addDimension(block, 0, 0), 2, 3), "Img"
+    )
 
     calibration = Calibration()
     calibration.setUnit("um")
@@ -65,9 +74,12 @@ def crop_img_from_swcs(img, swc_folder, output_image_dir, transform, add_offset=
         bbmin_world, _ = chunkutil.bbox(world_points)
         for i, swc_arr in enumerate(arrs):
             swc_arr[:, 2:5] -= bbmin_world
-            swcutil.ndarray_to_swc(swc_arr, os.path.join(output_swc_folder, names[i] + "_aligned.swc"))
+            swcutil.ndarray_to_swc(
+                swc_arr,
+                os.path.join(output_swc_folder, names[i] + "_aligned.swc"),
+            )
 
-    with open(os.path.join(output_image_dir, "block_metadata.json"), 'w') as f:
+    with open(os.path.join(output_image_dir, "block_metadata.json"), "w") as f:
         json.dump(chunk_metadata, f)
 
     print("Done")
@@ -83,9 +95,15 @@ if __name__ == "__main__":
     n5 = n5.N5FSReader(n5_workspace)
     print("datasets: ", n5.list("/"))
     lazyimg = n5.N5Utils.open(n5, "volume")
-    print("Volume dimensions: ", imglib2.Intervals.dimensionsAsLongArray(lazyimg))
-    lazyimg_ch0 = imglib2.Views.hyperSlice(lazyimg, lazyimg.numDimensions() - 1, 0)
+    print(
+        "Volume dimensions: ", imglib2.Intervals.dimensionsAsLongArray(lazyimg)
+    )
+    lazyimg_ch0 = imglib2.Views.hyperSlice(
+        lazyimg, lazyimg.numDimensions() - 1, 0
+    )
     output_image_dir = r"C:\Users\cameron.arshadi\Desktop\repos\20210812-AG-training-data\blocks\validation"
     if not os.path.isdir(output_image_dir):
         os.mkdir(output_image_dir)
-    crop_img_from_swcs(lazyimg_ch0, swc_folder, output_image_dir, um2vx, True, True)
+    crop_img_from_swcs(
+        lazyimg_ch0, swc_folder, output_image_dir, um2vx, True, True
+    )

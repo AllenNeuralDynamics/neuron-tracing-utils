@@ -11,10 +11,10 @@ def collect_abspaths(base_dir):
 def swc_to_ndarray(swc_path, add_offset=True):
     swc_lines = []
     offset = None
-    with open(os.path.abspath(swc_path), 'r') as f:
+    with open(os.path.abspath(swc_path), "r") as f:
         for line in f.readlines():
             split = line.split()
-            if split[0].strip() == '#':
+            if split[0].strip() == "#":
                 if len(split) == 1:
                     continue
                 if add_offset and split[1].strip() == "OFFSET":
@@ -39,13 +39,13 @@ def ndarray_to_swc(swc_arr, out_path):
             float(row[3]),
             float(row[4]),
             float(row[5]),
-            int(row[6])
+            int(row[6]),
         ]
         line = " ".join(str(p) for p in columns)
         lines.append(line)
 
-    with open(os.path.abspath(out_path), 'w') as f:
-        f.write('\n'.join(lines))
+    with open(os.path.abspath(out_path), "w") as f:
+        f.write("\n".join(lines))
 
 
 def path_to_name(swc_path):

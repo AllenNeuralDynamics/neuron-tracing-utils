@@ -12,23 +12,23 @@ def _load_jws_transform(filepath):
     """parse transform.txt file in sample dir and return
     corrected origin and scale ndarrays"""
     transform_dict = {}
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         for line in f.readlines():
-            pair = tuple(p.strip() for p in line.split(':'))
+            pair = tuple(p.strip() for p in line.split(":"))
             transform_dict[pair[0]] = float(pair[1])
 
     origin = np.zeros(3, dtype=float)
     scale = np.zeros(3, dtype=float)
     # offset (nm)
-    origin[0] = transform_dict['ox']
-    origin[1] = transform_dict['oy']
-    origin[2] = transform_dict['oz']
+    origin[0] = transform_dict["ox"]
+    origin[1] = transform_dict["oy"]
+    origin[2] = transform_dict["oz"]
     # voxel spacing (nm)
-    scale[0] = transform_dict['sx']
-    scale[1] = transform_dict['sy']
-    scale[2] = transform_dict['sz']
+    scale[0] = transform_dict["sx"]
+    scale[1] = transform_dict["sy"]
+    scale[2] = transform_dict["sz"]
     # num imagery levels (int)
-    nl = transform_dict['nl']
+    nl = transform_dict["nl"]
 
     # scale by number of imagery levels and convert nm to um
     divisor = 2.0 ** (nl - 1)
@@ -43,7 +43,6 @@ def _load_jws_transform(filepath):
 
 
 class WorldToVoxel:
-
     def __init__(self, transform_path):
         self.origin, self.scale = _load_jws_transform(transform_path)
 
@@ -57,9 +56,11 @@ class WorldToVoxel:
         return vox_coords * self.scale + self.origin
 
 
-def transform_swcs(indir, outdir, transform: WorldToVoxel, forward, swap_xy):
+def transform_swcs(
+    indir, outdir, transform: WorldToVoxel, forward, swap_xy
+):
     for root, dirs, files in os.walk(indir):
-        swcs = [f for f in files if f.endswith('.swc')]
+        swcs = [f for f in files if f.endswith(".swc")]
         for f in swcs:
             swc_path = os.path.join(root, f)
             outswc = os.path.join(outdir, os.path.relpath(swc_path, indir))
@@ -77,18 +78,25 @@ def transform_swcs(indir, outdir, transform: WorldToVoxel, forward, swap_xy):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Transform .swc files created in the Janelia Workstation from"
-                                                 "world coordinates to voxel coordinates.")
-    parser.add_argument('--input', type=str, help='directory of .swc files to transform')
-    parser.add_argument('--output', type=str,  help='directory to output transformed .swc files')
-    parser.add_argument('--transform', type=str, help='path to the \"transform.txt\" file')
-    parser.add_argument('--to-world', default=False, action='store_true')
-    parser.add_argument('--log-level', type=int, default=logging.INFO)
+    parser = argparse.ArgumentParser(
+        description="Transform .swc files created in the Janelia Workstation from"
+        "world coordinates to voxel coordinates."
+    )
+    parser.add_argument(
+        "--input", type=str, help="directory of .swc files to transform"
+    )
+    parser.add_argument(
+        "--output", type=str, help="directory to output transformed .swc files"
+    )
+    parser.add_argument(
+        "--transform", type=str, help='path to the "transform.txt" file'
+    )
+    parser.add_argument("--to-world", default=False, action="store_true")
+    parser.add_argument("--log-level", type=int, default=logging.INFO)
     parser.add_argument("--swap-xy", default=False, action="store_true")
-
     args = parser.parse_args()
 
-    logging.basicConfig(format='%(asctime)s %(message)s')
+    logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)
 
     forward = not args.to_world

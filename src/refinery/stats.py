@@ -10,7 +10,7 @@ def print_stats(swc_dir):
     total_length = 0
     total_bps = 0
     for root, dirs, files in os.walk(swc_dir):
-        swcs = [os.path.join(root, f) for f in files if f.endswith('.swc')]
+        swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
             continue
         for f in swcs:
@@ -25,7 +25,9 @@ def print_stats(swc_dir):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=str, help='directory of .swc files to render')
+    parser.add_argument(
+        "--input", type=str, help="directory of .swc files to render"
+    )
 
     args = parser.parse_args()
 

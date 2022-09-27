@@ -26,7 +26,7 @@ def ndarray_to_graph(swc_arr):
                 float(line[3]),
                 float(line[4]),
                 float(line[5]),
-                int(line[6])
+                int(line[6]),
             )
         )
     return snt.DirectedWeightedGraph(swc_points, True)
@@ -51,7 +51,10 @@ def swcpoint_to_sphere(img, swcPoint, radius):
 def swcpoint_to_block(img, swcpoint, side_lengths):
     return imglib2.Views.interval(
         img,
-        chunkutil.chunk_center([swcpoint.x, swcpoint.y, swcpoint.z], side_lengths))
+        chunkutil.chunk_center(
+            [swcpoint.x, swcpoint.y, swcpoint.z], side_lengths
+        ),
+    )
 
 
 def point_neighborhood(img, swcpoint, radius=1, pad=None, shape="sphere"):
