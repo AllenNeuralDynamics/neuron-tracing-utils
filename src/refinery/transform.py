@@ -44,8 +44,12 @@ def _load_jws_transform(filepath):
 
 
 class WorldToVoxel:
-    def __init__(self, transform_path):
-        self.origin, self.scale = _load_jws_transform(transform_path)
+    def __init__(self, transform_path=None, scale=None, origin=None):
+        if transform_path is not None:
+            self.origin, self.scale = _load_jws_transform(transform_path)
+        else:
+            self.scale = np.array([1.0, 1.0, 1.0]) if scale is None else np.array(scale)
+            self.origin = np.array([0, 0, 0]) if origin is None else np.array(origin)
 
     def forward(self, world_coords):
         """m x d world array -> m x d voxel array"""
@@ -90,12 +94,20 @@ def main():
         "--output", type=str, help="directory to output transformed .swc files"
     )
     parser.add_argument(
-        "--transform", type=str, help='path to the "transform.txt" file'
+        "--transform", type=str, default=None, help='path to the "transform.txt" file'
+    )
+    parser.add_argument(
+        "--voxel-size",
+        type=str,
+        default=None,
+        help="voxel size for images, as a string in XYZ order, e.g., '0.3,0.3,1.0'"
     )
     parser.add_argument("--to-world", default=False, action="store_true", help="transform voxel to world coordinates")
     parser.add_argument("--log-level", type=int, default=logging.INFO)
     parser.add_argument("--swap-xy", default=False, action="store_true", help="swap XY coordinates")
     args = parser.parse_args()
+
+    os.makedirs(args.output, exist_ok=True)
 
     with open(os.path.join(args.output, 'args.json'), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
@@ -105,7 +117,7 @@ def main():
 
     forward = not args.to_world
 
-    um2vx = WorldToVoxel(args.transform)
+    um2vx = WorldToVoxel(args.transform, args.voxel_size)
 
     logging.info("Starting transform...")
     transform_swcs(args.input, args.output, um2vx, forward, args.swap_xy)
