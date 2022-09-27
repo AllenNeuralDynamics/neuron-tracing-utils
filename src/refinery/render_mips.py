@@ -12,10 +12,10 @@ import numpy as np
 from skimage import exposure
 from skimage.io import imsave
 from skimage.draw import line
-from skimage.color import gray2rgb
+from skimage.color import gray2rgb, label2rgb
 
 
-def render_swcs(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
+def write_orig_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
@@ -48,16 +48,44 @@ def render_swcs(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
         imsave(out_tiff, mip_rgb)
 
 
+def write_label_mips(im_dir, out_mip_dir):
+    labels = [os.path.join(im_dir, f) for f in os.listdir(im_dir) if f.endswith("_Fill_Label_Mask.tif")]
+    for l in labels:
+        img = tifffile.imread(l)
+        mip_rgb = label2rgb(np.max(img, axis=0))
+
+        out_tiff = os.path.join(out_mip_dir, Path(l).name.replace(".tif", "_MIP.png"))
+        Path(out_tiff).parent.mkdir(exist_ok=True, parents=True)
+        imsave(out_tiff, mip_rgb)
+
+
+def write_gray_mips(im_dir, out_mip_dir, vmin, vmax):
+    labels = [os.path.join(im_dir, f) for f in os.listdir(im_dir) if f.endswith("_Fill_Gray_Mask.tif")]
+    for l in labels:
+        img = tifffile.imread(l)
+        img = exposure.rescale_intensity(img, in_range=(vmin, vmax))
+        mip_rgb = gray2rgb(np.max(img, axis=0))
+
+        out_tiff = os.path.join(out_mip_dir, Path(l).name.replace(".tif", "_MIP.png"))
+        Path(out_tiff).parent.mkdir(exist_ok=True, parents=True)
+        imsave(out_tiff, mip_rgb)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--input", type=str, help="directory of .swc files to render"
-    )
     parser.add_argument("--output", type=str, help="directory to output MIPs")
     parser.add_argument(
         "--images",
         type=str,
         help="directory of images associated with the .swc files",
+    )
+    parser.add_argument(
+        "--swcs", type=str, help="directory of .swc files to render"
+    )
+    parser.add_argument(
+        "--masks",
+        type=str,
+        help="directory of masks"
     )
     parser.add_argument(
         "--vmin",
@@ -86,7 +114,9 @@ def main():
 
     scyjava.start_jvm()
 
-    render_swcs(args.input, args.images, args.output, args.vmin, args.vmax)
+    write_orig_mips(args.swcs, args.images, os.path.join(args.output, "orig"), args.vmin, args.vmax)
+    write_label_mips(args.masks, os.path.join(args.output, "labels"))
+    write_gray_mips(args.masks, os.path.join(args.output, "gray"), args.vmin, args.vmax)
 
 
 if __name__ == "__main__":
