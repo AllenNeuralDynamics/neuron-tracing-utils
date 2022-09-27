@@ -1,6 +1,7 @@
 import os
 import logging
 import argparse
+from enum import Enum
 from pathlib import Path
 
 from refinery.util.java import snt
@@ -8,6 +9,11 @@ import zarr
 import scyjava
 import tifffile
 import numpy as np
+
+
+class OutOfBoundsMode(Enum):
+    clip = "clip"
+    prune = "prune"
 
 
 def get_tiff_shape(tiffpath):
@@ -63,12 +69,12 @@ def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
             mini = np.array([0, 0, 0])
             maxi = img_shape - 1
             num_points_before = graph.vertexSet().size()
-            if mode == "prune":
+            if mode == OutOfBoundsMode.prune.value:
                 prune_graph(graph, mini, maxi)
                 logging.info(
                     f"{num_points_before - graph.vertexSet().size()} points pruned"
                 )
-            elif mode == "clip":
+            elif mode == OutOfBoundsMode.clip.value:
                 clip_graph(graph, mini, maxi)
             else:
                 raise ValueError(f"Invalid mode {mode}")
@@ -107,8 +113,8 @@ def get_components_iterative(graph):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Prune vertices that lay outside the bounds of the image. "
-        "If a vertex of degree > 1 is pruned, this will break connectivity"
+        description="Prune or clip vertices that lay outside the bounds of the image. "
+        "If a vertex of degree > 1 is pruned, this will break connectivity "
         "and result in additional .swc outputs."
     )
     parser.add_argument(
@@ -122,6 +128,13 @@ def main():
         type=str,
         help="directory of images associated with the .swc files",
     )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=[mode.value for mode in OutOfBoundsMode],
+        default=OutOfBoundsMode.clip.value,
+        help="how to handle out-of-bounds points"
+    )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -132,7 +145,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting fix...")
-    fix_swcs(args.input, args.output, args.images)
+    fix_swcs(args.input, args.output, args.images, args.mode)
     logging.info("Finished fix.")
 
 
