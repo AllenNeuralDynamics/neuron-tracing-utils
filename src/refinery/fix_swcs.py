@@ -140,7 +140,10 @@ def main():
 
     args = parser.parse_args()
 
+    os.makedirs(args.output, exist_ok=True)
+
     with open(os.path.join(args.output, 'args.json'), 'w') as f:
+        args.__dict__['script'] = parser.prog
         json.dump(args.__dict__, f, indent=2)
 
     logging.basicConfig(format="%(asctime)s %(message)s")
