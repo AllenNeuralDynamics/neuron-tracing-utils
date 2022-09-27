@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import os
 from pathlib import Path
@@ -144,6 +145,9 @@ def main():
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
+
+    with open(os.path.join(args.output, 'args.json'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
     if args.spacing <= 0:
         raise ValueError("--spacing must be > 0")

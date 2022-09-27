@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import os
 from pathlib import Path
@@ -74,8 +75,10 @@ def main():
 
     args = parser.parse_args()
 
-    if not os.path.isdir(args.output):
-        os.makedirs(args.output, exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
+
+    with open(os.path.join(args.output, 'args.json'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
     logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)

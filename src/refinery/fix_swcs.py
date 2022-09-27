@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 import argparse
@@ -138,6 +139,9 @@ def main():
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
+
+    with open(os.path.join(args.output, 'args.json'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
     logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)
