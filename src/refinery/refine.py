@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+from enum import Enum
 from pathlib import Path
 
 from refinery.util.java import snt
@@ -10,6 +11,11 @@ from refinery.util import sntutil, imgutil
 
 import scyjava
 from jpype import JArray, JLong
+
+
+class RefineMode(Enum):
+    naive = "naive"
+    fit = "fit"
 
 
 def refine_point(
@@ -66,7 +72,7 @@ def fit_tree(tree, img, radius=1):
         fitter.call()
 
 
-def refine_swcs(in_swc_dir, out_swc_dir, imdir, radius=1, mode="fit"):
+def refine_swcs(in_swc_dir, out_swc_dir, imdir, radius=1, mode=RefineMode.naive.value):
     loader = imglib2.IJLoader()
     IJ = imagej1.IJ
     for root, dirs, files in os.walk(in_swc_dir):
@@ -82,14 +88,14 @@ def refine_swcs(in_swc_dir, out_swc_dir, imdir, radius=1, mode="fit"):
 
             tree = snt.Tree(swc_path)
 
-            if mode == "naive":
+            if mode == RefineMode.naive.value:
                 img = loader.get(
                     os.path.join(imdir, os.path.basename(root) + ".tif")
                 )
                 graph = tree.getGraph()
                 refine_graph(graph, img, radius)
                 graph.getTree().saveAsSWC(out_swc)
-            elif mode == "fit":
+            elif mode == RefineMode.fit.value:
                 # Versions prior to 4.04 only accept ImagePlus inputs
                 # this will be orders of magnitude slower than it should be
                 # until SNT versions >= 4.0.4 are available on the scijava maven repository
@@ -117,8 +123,8 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        choices=["naive", "fit"],
-        default="naive",
+        choices=[mode.value for mode in RefineMode],
+        default=RefineMode.naive.value,
         help="algorithm type",
     )
     parser.add_argument(
