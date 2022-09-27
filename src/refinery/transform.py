@@ -1,4 +1,5 @@
 import argparse
+import ast
 import json
 import logging
 import os
@@ -117,7 +118,11 @@ def main():
 
     forward = not args.to_world
 
-    um2vx = WorldToVoxel(args.transform, args.voxel_size)
+    voxel_size = None
+    if args.voxel_size is not None:
+        voxel_size = ast.literal_eval(args.voxel_size)
+
+    um2vx = WorldToVoxel(args.transform, voxel_size)
 
     logging.info("Starting transform...")
     transform_swcs(args.input, args.output, um2vx, forward, args.swap_xy)
