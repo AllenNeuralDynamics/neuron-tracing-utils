@@ -40,6 +40,7 @@ astar = 'refinery.astar:main'
 fill = 'refinery.fill:main'
 render_mips = 'refinery.render_mips:main'
 resample = 'refinery.resample:main'
+stats = 'refinery.stats:main'
 
 [tool.setuptools.packages.find]
 where = ["src"]
