@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refinery"
+description = "Tools for refinement of sparse tracings into dense voxel-wise ground-truth."
+license = {text = "MIT"}
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
+dynamic = ["version", "readme"]
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "zarr",
+    "tifffile",
+    "scikit-image"
+]
+
+[project.optional-dependencies]
+dev = [
+    'black',
+    'coverage',
+    'flake8',
+    'interrogate',
+    'isort',
+    'Sphinx',
+    'pygit2'
+]
+
+[project.scripts]
+transform = 'refinery.transform:main'
+align_to_cube = 'refinery.align_to_cube:main'
+fix_swcs = 'refinery.fix_swcs:main'
+refine = 'refinery.refine:main'
+astar = 'refinery.astar:main'
+fill = 'refinery.fill:main'
+render_mips = 'refinery.render_mips:main'
+resample = 'refinery.resample:main'
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "refinery.__version__"}
+readme = {file = ["README.md"]}
+
+[tool.black]
+line-length = 79
+target_version = ['py36']
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | build
+    | dist
+  )/
+  | .gitignore
+)
+'''
+
+[tool.coverage.run]
+omit = ["*__init__*"]
+source = ["refinery", "tests"]
+
+[tool.coverage.report]
+exclude_lines = ["if __name__ == .__main__.:"]
+fail_under = 0
+
+[tool.isort]
+line_length = 79
+
+[tool.interrogate]
+exclude = ["setup.py", "docs", "build"]
+fail-under = 0

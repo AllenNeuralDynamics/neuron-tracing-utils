@@ -1,13 +1,13 @@
-### Setup
+## Installation
 ```shell
-conda create -n refinery -c conda-forge imglyb
+conda create -n refinery -c conda-forge pyimagej openjdk=8
 conda activate refinery
 cd refinery
 pip install .
 ```
 To use the command-line entry points below, make sure the conda environment is active.
-### Typical Workflow
-#### 1. Transform 
+## Typical Workflow
+### 1. Transform 
 
 Transform Janelia workstation-created `.swc` files from world to voxel coordinates and back
 
@@ -27,11 +27,11 @@ transform --input="/path/to/input_swcs" --output="/path/to/output_swcs" --transf
 
 ---
 
-#### 2. Prune
+### 2. Fix out-of-bounds points
 Prune points that lay outside the image volume
 
 ```shell
-prune --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images"
+fix_swcs --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images" --mode=clip
 ```
 
 ***arguments***:
@@ -42,11 +42,13 @@ prune --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/p
 
 ```--images``` the folder containing the images on which `.swc`s were traced
 
+```--mode``` how to handle out-of-bounds points
+
 
 
 ---
 
-#### 3. Refine
+### 3. Refine
 Medial axis refinement to snap nodes to center of fluorescent signal
 
 ```shell
@@ -65,7 +67,7 @@ refine --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/
 
 ---
 
-#### 4. A-star
+### 4. A-star
 A-star search refinement between adjacent nodes to create dense tracings
 
 ```shell
@@ -88,7 +90,7 @@ Either `--voxel-size` or `--transform` must be specified, but not both.
 
 ---
 
-#### 5. Fill
+### 5. Fill
 Seeded-volume segmentation to generate masks of the tracings
 
 ```shell
@@ -114,7 +116,7 @@ Either `--voxel-size` or `--transform` must be specified, but not both.
 
 ---
 
-#### Misc.
+### Misc.
 
 Render maximum intensity projections of images along with projected tracings
 
