@@ -174,7 +174,7 @@ def main():
     parser.add_argument(
         "--cost",
         type=str,
-        choices=[Cost.reciprocal.value, Cost.one_minus_erf.value],
+        choices=[cost.value for cost in Cost],
         default=Cost.reciprocal.value,
         help="cost function for the Dijkstra search",
     )

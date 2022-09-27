@@ -164,7 +164,11 @@ def main():
     parser.add_argument(
         "--transform", type=str, help='path to the "transform.txt" file'
     )
-    parser.add_argument("--voxel-size", type=str, help="voxel size for images")
+    parser.add_argument(
+        "--voxel-size",
+        type=str,
+        help="voxel size for images, as a string in XYZ order, e.g., '0.3,0.3,1.0'"
+    )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -183,6 +187,7 @@ def main():
         raise ValueError(
             "Either --transform or --voxel-size must be specified."
         )
+    logging.info(f"Using voxel size {voxel_size}")
     calibration.pixelWidth = voxel_size[0]
     calibration.pixelHeight = voxel_size[1]
     calibration.pixelDepth = voxel_size[2]

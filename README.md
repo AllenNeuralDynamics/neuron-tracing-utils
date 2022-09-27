@@ -15,102 +15,122 @@ Transform Janelia workstation-created `.swc` files from world to voxel coordinat
 transform --input="/path/to/input_swcs" --output="/path/to/output_swcs" --transform="/path/to/transform.txt"  
 ```
 
-***arguments***:
+```
+usage: transform [-h] [--input INPUT] [--output OUTPUT] [--transform TRANSFORM] [--to-world] [--log-level LOG_LEVEL]
+                 [--swap-xy]
 
-```--input``` the folder containing `.swc` files to transform
-
-```--output``` the folder to export transformed `.swc` files
-
-```--transform``` path to the `transform.txt` file for the sample used to create the `.swc` files
-
-```--to-world``` convert from voxel coordinates to JWS world coordinates
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         directory of .swc files to transform
+  --output OUTPUT       directory to output transformed .swc files
+  --transform TRANSFORM
+                        path to the "transform.txt" file
+  --to-world            transform voxel to world coordinates
+  --log-level LOG_LEVEL
+  --swap-xy             swap XY coordinates
+```
 
 ---
 
 ### 2. Fix out-of-bounds points
-Prune points that lay outside the image volume
+Prune or clip vertices that lay outside the bounds of the image. If a vertex of degree > 1 is pruned, this will break
+connectivity and result in additional .swc outputs.
 
 ```shell
 fix_swcs --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images" --mode=clip
 ```
 
-***arguments***:
+```
+usage: fix_swcs [-h] [--input INPUT] [--output OUTPUT] [--images IMAGES] [--mode {clip,prune}] [--log-level LOG_LEVEL]
 
-```--input``` the folder containing `.swc` files to prune
-
-```--output``` the folder to export pruned `.swc` files
-
-```--images``` the folder containing the images on which `.swc`s were traced
-
-```--mode``` how to handle out-of-bounds points
-
-
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         directory of .swc files to prune
+  --output OUTPUT       directory to output pruned .swc files
+  --images IMAGES       directory of images associated with the .swc files
+  --mode {clip,prune}   how to handle out-of-bounds points
+  --log-level LOG_LEVEL
+```
 
 ---
 
 ### 3. Refine
-Medial axis refinement to snap nodes to center of fluorescent signal
+Medial axis refinement and (optional) radius assignment to tracings
 
 ```shell
-refine --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images"
+refine --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images" --radius=2
 ```
 
-***arguments***:
+```
+usage: refine [-h] [--input INPUT] [--output OUTPUT] [--images IMAGES] [--mode {naive,fit}] [--radius RADIUS]
+              [--log-level LOG_LEVEL]
 
-```--input``` the folder containing `.swc` files to refine
-
-```--output``` the folder to export refined `.swc` files
-
-```--images``` the folder containing the images on which `.swc`s were traced
-
-```--mode``` TODO
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         directory of .swc files to refine
+  --output OUTPUT       directory to output refined .swc files
+  --images IMAGES       directory of images associated with the .swc files
+  --mode {naive,fit}    algorithm type
+  --radius RADIUS       search radius for point refinement
+  --log-level LOG_LEVEL
+```
 
 ---
 
 ### 4. A-star
-A-star search refinement between adjacent nodes to create dense tracings
+A-star search refinement between adjacent pairs of points to create dense tracings
 
 ```shell
 astar --input="/path/to/input_swcs" --output="/path/to/output_swcs" --images="/path/to/input_images" --voxel-size="0.3,0.3,1.0"
 ```
 
-***arguments***:
+```
+usage: astar [-h] [--input INPUT] [--output OUTPUT] [--images IMAGES] [--transform TRANSFORM]
+             [--voxel-size VOXEL_SIZE] [--log-level LOG_LEVEL]
 
-```--input``` the folder containing `.swc` files to refine
-
-```--output``` the folder to export refined `.swc` files
-
-```--images``` the folder containing the images on which `.swc`s were traced
-
-```--transform``` path to the `transform.txt` file for the sample used to create the SWCs
-
-```--voxel-size``` voxel spacing for the images on which .swcs were traced, as a string of comma-separated floats in XYZ order. E.g., "0.3,0.3,1.0"
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         directory of .swc files to refine
+  --output OUTPUT       directory to output refined .swc files
+  --images IMAGES       directory of images associated with the .swc files
+  --transform TRANSFORM
+                        path to the "transform.txt" file
+  --voxel-size VOXEL_SIZE
+                        voxel size for images, as a string in XYZ order, e.g., '0.3,0.3,1.0'
+  --log-level LOG_LEVEL
+```
 
 Either `--voxel-size` or `--transform` must be specified, but not both.
 
 ---
 
 ### 5. Fill
-Seeded-volume segmentation to generate masks of the tracings
+Seeded-volume segmentation to generate masks (grayscale, labelling, binary) from the tracings
 
 ```shell
-fill --input="/path/to/input_swcs" --output="/path/to/output_masks" --images="/path/to/input_images" --threshold=0.03 --voxel-size="0.3,0.3,1.0"
+fill --input="/path/to/input_swcs" --output="/path/to/output_masks" --images="/path/to/input_images" --threshold=0.03 --voxel-size="0.3,0.3,1.0" --cost=reciprocal
 ```
 
-***arguments***:
+```
+usage: fill [-h] [--input INPUT] [--output OUTPUT] [--images IMAGES] [--threshold THRESHOLD] [--transform TRANSFORM]
+            [--voxel-size VOXEL_SIZE] [--cost {reciprocal,one-minus-erf}] [--log-level LOG_LEVEL] [--n5]
 
-```--input``` the folder containing `.swc` files to refine
-
-```--output``` the folder to export refined `.swc` files
-
-```--images``` the folder containing the images on which `.swc`s were traced
-
-```--threshold``` distance threshold for the filling algorithm (must be > 0). Default is `0.03`. A larger value will 
-result in thicker annotations, but may tread into background if set too high.
-
-```--transform``` path to the `transform.txt` file for the sample used to create the `.swc`s
-
-```--voxel-size``` voxel spacing for the images on which `.swc`s were traced, as a string of comma-separated floats in X,Y,Z order, e.g., `"0.3,0.3,1.0"`
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         directory of .swc files to fill
+  --output OUTPUT       directory to output mask volumes
+  --images IMAGES       directory of images associated with the .swc files
+  --threshold THRESHOLD
+                        distance threshold for fill algorithm
+  --transform TRANSFORM
+                        path to the "transform.txt" file
+  --voxel-size VOXEL_SIZE
+                        voxel size of images
+  --cost {reciprocal,one-minus-erf}
+                        cost function for the Dijkstra search
+  --log-level LOG_LEVEL
+  --n5                  save masks as n5. Otherwise, save as Tiff.
+```
 
 Either `--voxel-size` or `--transform` must be specified, but not both.
 
@@ -124,17 +144,39 @@ Render maximum intensity projections of images along with projected tracings
 render_mips --input="/path/to/input_swcs" --output="/path/to/output_MIPs" --images="/path/to/input_images" --vmin=12000 --vmax=15000
 ```
 
-***arguments***
+```
+usage: render_mips [-h] [--input INPUT] [--output OUTPUT] [--images IMAGES] [--vmin VMIN] [--vmax VMAX]
+                   [--log-level LOG_LEVEL]
 
-```--input``` the folder containing `.swc` files to render
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         directory of .swc files to render
+  --output OUTPUT       directory to output MIPs
+  --images IMAGES       directory of images associated with the .swc files
+  --vmin VMIN           minimum intensity of the desired display range
+  --vmax VMAX           maximum intensity of the desired display range
+  --log-level LOG_LEVEL
+```
 
-```--output``` the folder to export MIPs
+---
 
-```--images``` the folder containing the images on which `.swc`s were traced
+Resample tracings to have fixed spacing between adjacent pairs of points
 
-```--vmin``` minimum intensity of the desired display range
+```shell
+resample --input="/path/to/input_swcs" --output="/path/to/output_swcs" --spacing=5.0
+```
 
-```--vmax``` maximum intensity of the desired display range
+```
+usage: resample [-h] [--input INPUT] [--output OUTPUT] [--spacing SPACING] [--log-level LOG_LEVEL]
 
+Resample .swc files to have even spacing between consecutive nodes
 
-
+optional arguments:
+  -h, --help            show this help message and exit
+  --input INPUT         directory of .swc files to resample
+  --output OUTPUT       directory to output resampled .swc files
+  --spacing SPACING     target spacing between consecutive pairs of points, in spatial units given by the SWC. For
+                        example, if your SWCs are represented in micrometers, use micrometers. If they are in pixels,
+                        use pixels, etc.
+  --log-level LOG_LEVEL
+```

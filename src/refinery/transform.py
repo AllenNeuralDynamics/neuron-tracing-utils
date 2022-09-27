@@ -79,7 +79,7 @@ def transform_swcs(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Transform .swc files created in the Janelia Workstation from"
+        description="Transform .swc files created in the Janelia Workstation from "
         "world coordinates to voxel coordinates."
     )
     parser.add_argument(
@@ -91,9 +91,9 @@ def main():
     parser.add_argument(
         "--transform", type=str, help='path to the "transform.txt" file'
     )
-    parser.add_argument("--to-world", default=False, action="store_true")
+    parser.add_argument("--to-world", default=False, action="store_true", help="transform voxel to world coordinates")
     parser.add_argument("--log-level", type=int, default=logging.INFO)
-    parser.add_argument("--swap-xy", default=False, action="store_true")
+    parser.add_argument("--swap-xy", default=False, action="store_true", help="swap XY coordinates")
     args = parser.parse_args()
 
     logging.basicConfig(format="%(asctime)s %(message)s")
