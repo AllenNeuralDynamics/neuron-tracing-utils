@@ -16,6 +16,9 @@ import tifffile
 import numpy as np
 
 
+DEFAULT_Z_FUDGE = 0.8
+
+
 class Cost(Enum):
     """Enum for cost functions a user can select"""
 
@@ -52,7 +55,7 @@ def save_n5(filepath, img, dataset="volume", block_size=None):
     logging.info("Finished saving N5.")
 
 
-def get_cost(im, cost_str):
+def get_cost(im, cost_str, z_fudge=DEFAULT_Z_FUDGE):
     Reciprocal = snt.Reciprocal
     OneMinusErf = snt.OneMinusErf
 
@@ -65,6 +68,10 @@ def get_cost(im, cost_str):
         maxi = np.max(im)
         stddev = np.std(im)
         cost = OneMinusErf(maxi, mean, stddev)
+        # reduce z-score by a factor,
+        # so we can numerically distinguish more
+        # very bright voxels
+        cost.setZFudge(z_fudge)
     else:
         raise ValueError(f"Invalid cost {cost_str}")
 
