@@ -41,6 +41,7 @@ fill = 'refinery.fill:main'
 render_mips = 'refinery.render_mips:main'
 resample = 'refinery.resample:main'
 stats = 'refinery.stats:main'
+organize_outputs = 'refinery.organize_outputs:main'
 
 [tool.setuptools.packages.find]
 where = ["src"]
