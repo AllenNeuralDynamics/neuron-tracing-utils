@@ -127,6 +127,17 @@ def copy_swcs(src: Path, dst: Path):
             shutil.copyfile(swc, out_block_dir / new_name)
 
 
+def remove_blocks_without_swcs(dst: Path):
+    blocks_dir = dst / "blocks"
+    swcs_dir = dst / "swcs"
+
+    valid_blocks = [b.name for b in swcs_dir.iterdir() if b.name.startswith("block")]
+
+    for b in blocks_dir.iterdir():
+        if b.name not in valid_blocks:
+            shutil.rmtree(b)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=str)
@@ -143,5 +154,8 @@ def main():
     copy_masks(in_dir, out_dir)
     copy_swcs(in_dir, out_dir)
 
+    remove_blocks_without_swcs(out_dir)
 
-main()
+
+if __name__ == "__main__":
+    main()
