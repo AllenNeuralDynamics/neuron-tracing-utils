@@ -141,18 +141,19 @@ Either `--voxel-size` or `--transform` must be specified, but not both.
 Render maximum intensity projections of images along with projected tracings
 
 ```shell
-render_mips --input="/path/to/input_swcs" --output="/path/to/output_MIPs" --images="/path/to/input_images" --vmin=12000 --vmax=15000
+render_mips --output="/path/to/output_MIPs" --images="/path/to/input_images" --swcs="/path/to/swcs" --masks="/path/to/masks" --vmin=12000 --vmax=15000
 ```
 
 ```
-usage: render_mips [-h] [--input INPUT] [--output OUTPUT] [--images IMAGES] [--vmin VMIN] [--vmax VMAX]
+usage: render_mips [-h] [--output OUTPUT] [--images IMAGES] [--swcs SWCS] [--masks MASKS] [--vmin VMIN] [--vmax VMAX]
                    [--log-level LOG_LEVEL]
 
 optional arguments:
   -h, --help            show this help message and exit
-  --input INPUT         directory of .swc files to render
   --output OUTPUT       directory to output MIPs
   --images IMAGES       directory of images associated with the .swc files
+  --swcs SWCS           directory of .swc files to render
+  --masks MASKS         directory of masks
   --vmin VMIN           minimum intensity of the desired display range
   --vmax VMAX           maximum intensity of the desired display range
   --log-level LOG_LEVEL
