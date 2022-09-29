@@ -54,6 +54,8 @@ def copy_blocks(src: Path, dst: Path, voxel_spacing: list):
 
         block_metadata['voxel_spacing'] = voxel_spacing
 
+        block_metadata['provenance'] = ""
+
         with open(out_block / "metadata.json", 'w') as f:
             json.dump(block_metadata, f, indent=4)
 
