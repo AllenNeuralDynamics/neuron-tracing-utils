@@ -3,11 +3,14 @@ import json
 import os
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 import numpy as np
 import tifffile
 import zarr
+
+from util.java.config import get_snt_version, get_fiji_version
 
 
 def get_tiff_shape(tiff_path):
@@ -138,6 +141,41 @@ def remove_blocks_without_swcs(dst: Path):
             shutil.rmtree(b)
 
 
+def write_component_versions(dst: Path):
+    blocks_dir = dst / "blocks"
+
+    for b in blocks_dir.iterdir():
+        with open(b / "metadata.json", "r") as f:
+            metadata = json.load(f)
+
+        metadata['snt_version'] = get_snt_version()
+        metadata['fiji_version'] = get_fiji_version()
+        metadata['refinery_commit_sha'] = get_git_revision_hash()
+        metadata['refinery_url'] = get_source_url()
+
+        with open(b / "metadata.json", "w") as f:
+            json.dump(metadata, f)
+
+
+def get_git_revision_hash() -> str:
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+
+
+def get_source_url() -> str:
+    import toml
+    data = toml.loads(find_pyproject().read_text())
+    return data['project']['urls']['source']
+
+
+def find_pyproject():
+    curdir = Path(os.path.dirname(os.path.abspath(__file__)))
+    root = curdir.parent.parent
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file():
+        raise FileNotFoundError(f"Could not find pyproject.toml in {root}")
+    return pyproject
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=str)
@@ -155,6 +193,8 @@ def main():
     copy_swcs(in_dir, out_dir)
 
     remove_blocks_without_swcs(out_dir)
+
+    write_component_versions(out_dir)
 
 
 if __name__ == "__main__":

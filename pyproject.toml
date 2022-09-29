@@ -17,7 +17,8 @@ dependencies = [
     "scipy",
     "zarr",
     "tifffile",
-    "scikit-image"
+    "scikit-image",
+    "toml"
 ]
 
 [project.optional-dependencies]
@@ -42,6 +43,9 @@ render_mips = 'refinery.render_mips:main'
 resample = 'refinery.resample:main'
 stats = 'refinery.stats:main'
 organize_outputs = 'refinery.organize_outputs:main'
+
+[project.urls]
+source = "https://github.com/AllenNeuralDynamics/refinery"
 
 [tool.setuptools.packages.find]
 where = ["src"]
