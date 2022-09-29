@@ -82,7 +82,7 @@ def copy_masks(src: Path, dst: Path):
             continue
         args = find_args(p)
         if args is None:
-            raise ValueError(f"Could not find args.json in {p}")
+            raise FileNotFoundError(f"Could not find args.json in {p}")
 
         fill_threshold = float(args['threshold'])
         fill_cost_function = str(args['cost'])
