@@ -18,7 +18,10 @@ dependencies = [
     "zarr",
     "tifffile",
     "scikit-image",
-    "toml"
+    "toml",
+    "dask",
+    "s3fs",
+    "gcsfs"
 ]
 
 [project.optional-dependencies]

@@ -12,6 +12,10 @@ def _java_setup():
     N5FSWriter = scyjava.jimport("org.janelia.saalfeldlab.n5.N5FSWriter")
     global N5Utils
     N5Utils = scyjava.jimport("org.janelia.saalfeldlab.n5.imglib2.N5Utils")
+    global AmazonS3ClientBuilder
+    AmazonS3ClientBuilder = scyjava.jimport("com.amazonaws.services.s3.AmazonS3ClientBuilder")
+    global N5AmazonS3Reader
+    N5AmazonS3Reader = scyjava.jimport("org.janelia.saalfeldlab.n5.s3.N5AmazonS3Reader")
     global GzipCompression
     GzipCompression = scyjava.jimport(
         "org.janelia.saalfeldlab.n5.GzipCompression"
