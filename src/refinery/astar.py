@@ -1,29 +1,40 @@
 import argparse
 import ast
+from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import os
 from pathlib import Path
+import time
+import itertools
 
 from refinery.util import sntutil
 from refinery.util.java import snt
-from refinery.util.java import imglib2, imagej1
+from refinery.util.java import imglib2, imagej1, n5
 from refinery.transform import WorldToVoxel
 
+import dask.array as da
 import scyjava
 import numpy as np
+import zarr
+import imglyb
 
 
-def astar_graph(graph, img, calibration):
+def astar_graph(in_swc, out_swc, img, calibration):
     # declare Java classes we will use
     Euclidean = snt.Euclidean
     Reciprocal = snt.Reciprocal
     BiSearch = snt.BiSearch
     SNT = snt.SNT
+    Tree = snt.Tree
     ImgUtils = snt.ImgUtils
     Views = imglib2.Views
     DoubleType = imglib2.DoubleType
     ComputeMinMax = imglib2.ComputeMinMax
+    
+    print(f"processing {in_swc}")
+
+    graph = Tree(in_swc).getGraph()
 
     # just to avoid a concurrent modification exception
     # when iterating over the edge set
@@ -54,11 +65,26 @@ def astar_graph(graph, img, calibration):
 
         # compute min-max of the subvolume where the start and goal nodes
         # are origin and corner, respectively, plus padding in each dimension
-        pad_pixels = 30
+        pad_pixels = 20
         subvolume = ImgUtils.subVolume(img, sx, sy, sz, tx, ty, tz, pad_pixels)
         iterable = Views.iterable(subvolume)
         minmax = ComputeMinMax(iterable, DoubleType(), DoubleType())
         minmax.process()
+
+        # s = 0
+        # c = 0
+        # mx = float("-inf")
+        # for n in iterable:
+        #     if n is None:
+        #         continue
+        #     val = n.get()
+        #     s += val
+        #     c += 1
+        #     if val > mx:
+        #         mx = val
+        # mean = s / float(c)
+    
+        # print(mean, mx)
 
         # reciprocal of intensity * distance is our cost for moving to a neighboring node
         cost = Reciprocal(
@@ -74,8 +100,8 @@ def astar_graph(graph, img, calibration):
             tx,
             ty,
             tz,
-            30,
-            0,  # timeout (s), debug mode reporting interval (ms)
+            60, # timeout (s)
+            1000, # debug mode reporting interval (ms)
             SNT.SearchImageType.MAP,
             cost,
             heuristic,
@@ -86,12 +112,12 @@ def astar_graph(graph, img, calibration):
         # note the Path result is in world coordinates
         path = search.getResult()
         if path is None:
-            logging.warning(
-                "Search failed for points {} and {}, skipping edge".format(
-                    str(source), str(target)
+            print(
+                "Search failed for {}: points {} and {}, aborting".format(
+                    in_swc, str(source), str(target)
                 )
             )
-            continue
+            return
 
         path_arr = sntutil.path_to_ndarray(path)
         # convert back to voxel coords
@@ -111,6 +137,15 @@ def astar_graph(graph, img, calibration):
             prev = tmp
         graph.addEdge(tmp, target)
 
+    tree = graph.getTree()
+    # Set a non-zero radius.
+    # Some programs (JWS) fail to import .swc files with radii == 0
+    tree.setSWCType("axon")
+    tree.setRadii(1.0)
+    tree.saveAsSWC(out_swc)
+    
+
+
 
 def astar_swcs(
     in_swc_dir,
@@ -120,33 +155,51 @@ def astar_swcs(
     swc_type="axon",
     swc_radius=1.0,
 ):
-    IJLoader = imglib2.IJLoader
+    #IJLoader = imglib2.IJLoader
     Tree = snt.Tree
 
-    loader = IJLoader()
+    #loader = IJLoader()
+
+    s3 = n5.AmazonS3ClientBuilder.defaultClient()
+    reader = n5.N5AmazonS3Reader(s3, "janelia-mouselight-imagery", "carveouts/2018-08-01/fluorescence-near-consensus.n5")
+    img = n5.N5Utils.openWithBoundedSoftRefCache(reader, "volume-rechunked", 5000)
+    print(img.dimensionsAsLongArray())
+    view = imglib2.Views.hyperSlice(img, 3, 0)
+
+    in_swcs = []
+    out_swcs = []
 
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith(".swc")]
         for f in swcs:
-            tiff = os.path.join(imdir, os.path.basename(root) + ".tif")
-            img = loader.get(tiff)
+            if "consensus" not in f:
+                continue
+            #n5 = os.path.join(imdir, os.path.basename(root) + ".n5")
 
             in_swc = os.path.join(root, f)
+            in_swcs.append(in_swc)
             logging.info(f"Running A-star on {in_swc}")
 
             out_swc = os.path.join(
                 out_swc_dir, os.path.relpath(in_swc, in_swc_dir)
             )
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
+            out_swcs.append(out_swc)
 
-            graph = Tree(in_swc).getGraph()
-            astar_graph(graph, img, calibration)
-            tree = graph.getTree()
-            # Set a non-zero radius.
-            # Some programs (JWS) fail to import .swc files with radii == 0
-            tree.setSWCType(swc_type)
-            tree.setRadii(swc_radius)
-            tree.saveAsSWC(out_swc)
+    times = len(in_swcs)
+    
+    t0 = time.time()
+    with ThreadPoolExecutor(16) as executor:
+        executor.map(
+            astar_graph, 
+            in_swcs,
+            out_swcs,
+            itertools.repeat(view, times), 
+            itertools.repeat(calibration, times)
+        )
+    t1 = time.time()
+    logging.info(f"processed {times} swcs in {t1-t0}s")
+
 
 
 def main():

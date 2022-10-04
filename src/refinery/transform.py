@@ -72,6 +72,9 @@ def transform_swcs(
             outswc = os.path.join(outdir, os.path.relpath(swc_path, indir))
             Path(outswc).parent.mkdir(exist_ok=True, parents=True)
             arr = swcutil.swc_to_ndarray(swc_path, True)
+            if len(arr) == 0:
+                logging.error(f"{swc_path} is invalid")
+                continue
             if forward:
                 arr[:, 2:5] = transform.forward(arr[:, 2:5])
             else:

@@ -54,10 +54,16 @@ def clip_graph(g, mini, maxi):
 def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith(".swc")]
+        if not swcs:
+            continue
+        #n5 = os.path.join(imdir, os.path.basename(root) + ".n5")
+        n5 = "s3://janelia-mouselight-imagery/carveouts/2018-08-01/fluorescence-near-consensus.n5/"
+        store = zarr.N5FSStore(n5)
+        z = zarr.open(store, 'r')
+        ds = z['volume-rechunked']
+        img_shape = np.array(list(reversed(ds.shape)), dtype=int)[0:3]
+        print(img_shape)
         for f in swcs:
-            tiff = os.path.join(imdir, os.path.basename(root) + ".tif")
-            img_shape = get_tiff_shape(tiff)
-
             swc = os.path.join(root, f)
             logging.info(f"fixing {swc}")
             out_swc = os.path.join(

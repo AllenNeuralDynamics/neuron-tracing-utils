@@ -2,8 +2,13 @@ import argparse
 import ast
 import json
 import logging
+import re
 import os
 from enum import Enum
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+import itertools
+import time
 
 from refinery.util.java import n5
 from refinery.util.java import snt
@@ -14,6 +19,10 @@ import imglyb
 import scyjava
 import tifffile
 import numpy as np
+
+import jpype.imports
+
+import zarr
 
 
 DEFAULT_Z_FUDGE = 0.8
@@ -37,22 +46,49 @@ def fill_paths(pathlist, img, cost, threshold, calibration):
     return thread
 
 
-def save_n5(filepath, img, dataset="volume", block_size=None):
-    from java.lang import Runtime
-    from java.util.concurrent import Executors
+def fill_path(path, img, cost, threshold, calibration):
+    thread = snt.FillerThread(
+            img, calibration, threshold, 1000, cost
+    )
+    thread.setSourcePaths([path])
+    thread.setStopAtThreshold(True)
+    thread.run()
+    return thread
 
-    if block_size is None:
-        block_size = [64, 64, 64]
-    n5Writer = n5.N5FSWriter(filepath)
-    logging.info("Saving N5...")
-    exec = Executors.newFixedThreadPool(
-        Runtime.getRuntime().availableProcessors()
-    )
-    n5.N5Utils.save(
-        img, n5Writer, dataset, block_size, n5.GzipCompression(6), exec
-    )
-    exec.shutdown()
-    logging.info("Finished saving N5.")
+
+def myRange(start,end,step):
+    i = start
+    while i < end:
+        yield i
+        i += step
+    yield end
+    
+
+def fill_tree(tree, img, cost, threshold, calibration):
+    paths = []
+    for b in snt.TreeAnalyzer(tree).getBranches():
+        if b.size() > 500:
+            vals = list(myRange(0, b.size()-1, 100))
+            for i in range(0, len(vals)-1):
+                paths.append(b.getSection(vals[i], vals[i+1]))
+        else:
+            paths.append(b)
+    times = len(paths)
+    t0 = time.time()
+    with ThreadPoolExecutor(16) as executor:
+        fillers = executor.map(
+            fill_path,
+            paths, 
+            itertools.repeat(img, times), 
+            itertools.repeat(cost, times), 
+            itertools.repeat(threshold, times), 
+            itertools.repeat(calibration, times)
+        )
+    print(f"Filled {tree.getLabel()} in {time.time() - t0}s")
+    converter = snt.FillConverter(list(fillers))
+    # Merge fills into a single stack.
+    stack = converter.getFillerStack()
+    return stack
 
 
 def get_cost(im, cost_str, z_fudge=DEFAULT_Z_FUDGE):
@@ -85,75 +121,78 @@ def fill_swcs(
     cost_str,
     threshold,
     cal,
-    export_labels=True,
-    export_gray=True,
-    as_n5=False,
 ):
     Tree = snt.Tree
-    FillConverter = snt.FillConverter
-    DiskCachedCellImgFactory = imglib2.DiskCachedCellImgFactory
-    UnsignedShortType = imglib2.UnsignedShortType
-    UnsignedByteType = imglib2.UnsignedByteType
+
+    reader = n5.N5AmazonS3Reader(
+        n5.AmazonS3ClientBuilder.defaultClient(), 
+        "janelia-mouselight-imagery", 
+        "carveouts/2018-08-01/fluorescence-near-consensus.n5"
+    )
+    img = n5.N5Utils.openWithBoundedSoftRefCache(reader, "volume-rechunked", 2000)
+    view = imglib2.Views.hyperSlice(img, 3, 0)
+    print(view.dimensionsAsLongArray())
+    
+    name_pattern = re.compile(r"G-\d+")
 
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
             continue
 
-        img_name = os.path.basename(root)
-        tiff = os.path.join(im_dir, img_name + ".tif")
-        logging.info(f"Generating masks for {tiff}")
-        im = tifffile.imread(tiff)
+        cost = snt.Reciprocal(11000, 40000)
 
-        cost = get_cost(im, cost_str)
-
-        # Wrap ndarray as imglib2 Img, using util memory
-        # keep the reference in scope until the object is safe to be garbage collected
-        img, ref_store = imglyb.as_cell_img(
-            im, chunk_shape=(64, 64, 64), cache=100
-        )
-
-        filler_threads = []
         for f in swcs:
-            tree = Tree(os.path.join(root, f))
-            thread = fill_paths(tree.list(), img, cost, threshold, cal)
-            filler_threads.append(thread)
-
-        converter = FillConverter(filler_threads)
-
-        if export_gray:
-            mask = DiskCachedCellImgFactory(UnsignedShortType()).create(
-                img.dimensionsAsLongArray()
-            )
-            converter.convert(img, mask)
-            mask_name = img_name + "_Fill_Gray_Mask.n5"
-            save_mask(mask, out_mask_dir, mask_name, as_n5)
-
-        if export_labels:
-            mask = DiskCachedCellImgFactory(UnsignedByteType()).create(
-                img.dimensionsAsLongArray()
-            )
-            converter.convertLabels(mask)
-            mask_name = img_name + "_Fill_Label_Mask.n5"
-            save_mask(mask, out_mask_dir, mask_name, as_n5)
-
-
-def save_mask(mask, mask_dir, mask_name, as_n5=False):
-    Views = imglib2.Views
-    IJ = imagej1.IJ
-    ImageJFunctions = imglib2.ImageJFunctions
-
-    mask_path = os.path.join(mask_dir, mask_name)
-    if as_n5:
-        save_n5(mask_path, mask)
-    else:
-        # ImageJ treats the 3rd dimension as channel instead of depth,
-        # so add a dummy Z dimension to the end (XYCZ) and swap dimensions 2 and 3 (XYZC).
-        # Opening this image in ImageJ will then show the correct axis type (XYZ)
-        imp = ImageJFunctions.wrap(
-            Views.permute(Views.addDimension(mask, 0, 0), 2, 3), ""
-        )
-        IJ.saveAsTiff(imp, mask_path)
+            if not "consensus" in f:
+                continue
+                
+            print(f"filling {f}")
+            
+            m = name_pattern.search(f)
+            if not m:
+                print(f"missing tag for {f}")
+                continue
+            tag = m.group(0)
+            
+            fill_path = os.path.join(out_mask_dir, f"{tag}_Fill.txt.gz")
+            if os.path.isfile(fill_path):
+                continue
+            
+            tree = Tree(f)
+            
+            # coords = []
+            # nodes = tree.getNodesAsSWCPoints()
+            # for n in nodes:
+            #     coords.append([n.x, n.y, n.z])
+            # coords = np.array(coords, dtype=int)
+            # bmin, bmax = coords.min(axis=0), coords.max(axis=0)
+            # ival = imglib2.Intervals.createMinMax(bmin[0], bmin[1], bmin[2], bmax[0], bmax[1], bmax[2])
+            # block = imglib2.Views.interval(view, ival)
+    
+            filler_stack = fill_tree(tree, view, cost, threshold, cal)
+        
+            print("saving fill")
+            save_fill(filler_stack, fill_path)
+            
+            del filler_stack
+        
+        
+def save_fill(fill_stack, path):
+    import gzip
+    
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    
+    lines = []
+    for plane in fill_stack:
+        for node in plane:
+            if node is None:
+                continue
+            s = f"{node.x} {node.y} {node.z}"
+            lines.append(s)
+            
+    fill_str_bytes = str.encode("\n".join(lines))
+    with gzip.open(path, 'wb') as f:
+        f.write(fill_str_bytes)
 
 
 def main():
@@ -230,9 +269,6 @@ def main():
         args.cost,
         args.threshold,
         calibration,
-        export_labels=True,
-        export_gray=True,
-        as_n5=args.n5,
     )
 
 

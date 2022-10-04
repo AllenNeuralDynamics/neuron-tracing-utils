@@ -4,6 +4,9 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+import itertools
+from time import time
 
 from refinery.util.java import snt
 from refinery.util.java import imglib2, imagej1
@@ -11,6 +14,8 @@ from refinery.util import sntutil, imgutil
 
 import scyjava
 from jpype import JArray, JLong
+import zarr
+import imglyb
 
 
 class RefineMode(Enum):
@@ -26,6 +31,7 @@ def refine_point(
     and measures mean intensity, keeping track of the maximum encountered mean,
     then use the position of the final maximum to snap the SWCPoint to. Because this is a brute-force solution,
     it is very slow."""
+    print(f"refining point {str(swc_point)}")
     if region_pad is None:
         region_pad = [1, 1, 1]
     chunk = None
@@ -58,8 +64,15 @@ def refine_point(
 
 
 def refine_graph(graph, img, radius=1):
-    for v in graph.vertexSet():
-        refine_point(v, img, radius)
+    vertices = (v for v in graph.vertexSet())
+    times = graph.vertexSet().size()
+    with ThreadPoolExecutor(16) as executor:
+        executor.map(
+            refine_point, 
+            vertices, 
+            itertools.repeat(img, times), 
+            itertools.repeat(radius, times)
+            )
 
 
 def fit_tree(tree, img, radius=1):
@@ -89,11 +102,20 @@ def refine_swcs(in_swc_dir, out_swc_dir, imdir, radius=1, mode=RefineMode.naive.
             tree = snt.Tree(swc_path)
 
             if mode == RefineMode.naive.value:
-                img = loader.get(
-                    os.path.join(imdir, os.path.basename(root) + ".tif")
+                n5 = "s3://janelia-mouselight-imagery/carveouts/2018-08-01/fluorescence-near-consensus.n5/"
+                store = zarr.N5FSStore(n5)
+                z = zarr.open(store, 'r')
+                ds = z['volume-rechunked']
+                print(ds.shape)
+                print(ds.chunks)
+                img, ref_store = imglyb.as_cell_img(
+                    ds, 
+                    chunk_shape=tuple(reversed(ds.chunks)), 
+                    cache=100
                 )
+                view = imglib2.Views.hyperSlice(img, 3, 0)
                 graph = tree.getGraph()
-                refine_graph(graph, img, radius)
+                refine_graph(graph, view, radius)
                 graph.getTree().saveAsSWC(out_swc)
             elif mode == RefineMode.fit.value:
                 # Versions prior to 4.04 only accept ImagePlus inputs
