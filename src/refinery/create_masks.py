@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     fill_dir = Path(r"C:\Users\cameron.arshadi\Desktop\2018-10-01\fills-axons")
 
-    out_mask_dir = Path(r"C:\Users\cameron.arshadi\Desktop\2018-10-01\masks-dendrites")
+    out_mask_dir = Path(r"C:\Users\cameron.arshadi\Desktop\2018-10-01\masks-axons")
     out_mask_dir.mkdir(parents=True, exist_ok=True)
 
     n5_url = "s3://janelia-mouselight-imagery/carveouts/2018-08-01/fluorescence-near-consensus.n5"
@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     compressor = blosc.Blosc(cname="zstd", clevel=1, shuffle=blosc.Blosc.SHUFFLE)
 
-    store = zarr.DirectoryStore(r"C:\Users\cameron.arshadi\Desktop\store.zarr")
+    store = zarr.DirectoryStore(r"C:\Users\cameron.arshadi\Desktop\2018-10-01\consensus-fill.zarr")
     za = zarr.create(
         store=store,
         shape=full_shape,
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
         bmin, bmax = bbox(indices)
         print(bmin, bmax)
-        print((bmax - bmin + 1).nbytes / (1024 ** 2))
+        print((np.product(bmax - bmin + 1) * 2) / (1024 ** 2))
 
         setGray(za, ds, indices)
 
