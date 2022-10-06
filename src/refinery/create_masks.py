@@ -55,7 +55,7 @@ def set_voxels(za, ds, indices, mask_type):
     elif mask_type == MaskType.grayscale.value:
         set_gray(za, ds, indices)
     elif mask_type == MaskType.binary.value:
-        set_const(za, ds, value=255)
+        set_const(za, indices, value=255)
     else:
         raise ValueError(f"Invalid value for mask type: {mask_type}")
 
