@@ -105,9 +105,9 @@ def mean_interp(ra, x, y, z, radius):
     pos = JArray(JDouble, 1)(3)
     s = 0
     n = 0
-    for dx in np.linspace(x - radius, x + radius + 1, 2 * radius + 1, dtype=float):
-        for dy in np.linspace(y - radius, y + radius + 1, 2 * radius + 1, dtype=float):
-            for dz in np.linspace(z - radius, z + radius + 1, 2 * radius + 1, dtype=float):
+    for dx in np.linspace(x - radius, x + radius, 2 * radius + 1, dtype=float):
+        for dy in np.linspace(y - radius, y + radius, 2 * radius + 1, dtype=float):
+            for dz in np.linspace(z - radius, z + radius, 2 * radius + 1, dtype=float):
                 dd = (dx - x) ** 2 + (dy - y) ** 2 + (dz - z) ** 2
                 if dd > rr:
                     continue
@@ -137,7 +137,8 @@ def mean_shift_point(swc_point, img, radius, n_iter=10):
 
     count = 0
     displacements = []
-    while disp >= 0.5 and count < n_iter:
+    max_disp = 2.0
+    while disp >= 0.25 and count < n_iter:
         count += 1
         sx = 0
         sy = 0
@@ -145,9 +146,9 @@ def mean_shift_point(swc_point, img, radius, n_iter=10):
         sw = 0
         n = 0
         avg = mean_interp(ra, x, y, z, radius)
-        for dx in np.linspace(x - radius, x + radius + 1, 2 * radius + 1, dtype=float):
-            for dy in np.linspace(y - radius,  y + radius + 1, 2 * radius + 1, dtype=float):
-                for dz in np.linspace(z - radius, z + radius + 1, 2 * radius + 1, dtype=float):
+        for dx in np.linspace(x - radius, x + radius, 2 * radius + 1, dtype=float):
+            for dy in np.linspace(y - radius, y + radius, 2 * radius + 1, dtype=float):
+                for dz in np.linspace(z - radius, z + radius, 2 * radius + 1, dtype=float):
                     dd = (dx - x) ** 2 + (dy - y) ** 2 + (dz - z) ** 2
                     if dd > rr:
                         continue
@@ -161,13 +162,17 @@ def mean_shift_point(swc_point, img, radius, n_iter=10):
                         sz += dz * w
                         sw += w
                         n += 1
+
         if n == 0:
-            return
+            return [0]
+
         cx = sx / sw
         cy = sy / sw
         cz = sz / sw
-        disp = math.sqrt((cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2)
+
+        disp = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2
         displacements.append(disp)
+
         x = cx
         y = cy
         z = cz
@@ -181,15 +186,15 @@ def mean_shift_point(swc_point, img, radius, n_iter=10):
     return displacements
 
 
-def refine_graph(graph, img, radius, n_iter=20):
+def refine_graph(graph, img, radius, n_iter):
     Converters = imglib2.Converters
-    RealFloatConverter = imglib2.RealFloatConverter
-    FloatType = imglib2.FloatType
+    RealDoubleConverter = imglib2.RealDoubleConverter
+    DoubleType = imglib2.DoubleType
     Views = imglib2.Views
     NLinearInterpolatorFactory = imglib2.NLinearInterpolatorFactory
     RandomAccessibleInterval = imglib2.RandomAccessibleInterval
 
-    floatImg = Converters.convert(RandomAccessibleInterval @ img, RealFloatConverter(), FloatType())
+    floatImg = Converters.convert(RandomAccessibleInterval @ img, RealDoubleConverter(), DoubleType())
     interpolant = Views.interpolate(Views.extendZero(floatImg), NLinearInterpolatorFactory())
 
     vertices = (v for v in graph.vertexSet())
