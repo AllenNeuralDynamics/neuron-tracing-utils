@@ -57,41 +57,67 @@ def save_n5(filepath, img, dataset="volume", block_size=None):
     logging.info("Finished saving N5.")
 
 
-def get_cost(im, cost_str, cost_min, cost_max, z_fudge=DEFAULT_Z_FUDGE):
+def get_cost(im, cost_str, z_fudge=DEFAULT_Z_FUDGE):
     Reciprocal = snt.Reciprocal
     OneMinusErf = snt.OneMinusErf
 
+    params = {}
+
     if cost_str == Cost.reciprocal.value:
         mean = np.mean(im)
-        maxi = np.max(im)
-        cost = Reciprocal(mean, maxi)
+        maximum = np.max(im)
+        cost = Reciprocal(mean, maximum)
+        params['fill_cost_function'] = {
+            'name': Cost.reciprocal.value,
+            'args': {
+                "min": mean,
+                "max": maximum
+            }
+        }
     elif cost_str == Cost.one_minus_erf.value:
         mean = np.mean(im)
-        maxi = np.max(im)
-        stddev = np.std(im)
-        cost = OneMinusErf(maxi, mean, stddev)
+        maximum = np.max(im)
+        std = np.std(im)
+        cost = OneMinusErf(maximum, mean, std)
         # reduce z-score by a factor,
         # so we can numerically distinguish more
         # very bright voxels
         cost.setZFudge(z_fudge)
+        params['fill_cost_function'] = {
+            'name': Cost.one_minus_erf.value,
+            "args": {
+                "max": maximum,
+                "average": mean,
+                "standardDeviation": std,
+                "zFudge": z_fudge
+            }
+        }
     else:
         raise ValueError(f"Invalid cost {cost_str}")
 
-    return cost
+    return cost, params
 
 
-def get_cost_global(cost_str, minimum, maximum, mean, std, cost_min, cost_max, z_fudge=DEFAULT_Z_FUDGE):
+def get_cost_global(cost_str, mean, std, cost_min, cost_max, z_fudge=DEFAULT_Z_FUDGE):
     Reciprocal = snt.Reciprocal
     OneMinusErf = snt.OneMinusErf
+    params = {}
 
     if cost_str == Cost.reciprocal.value:
-        cost = Reciprocal(
-            max(0, mean + cost_min * std),
-            mean + cost_max * std
-        )
+        minimum = max(0, mean + cost_min * std)
+        maximum = mean + cost_max * std
+        cost = Reciprocal(minimum, maximum)
+        params['fill_cost_function'] = {
+            'name': Cost.reciprocal.value,
+            'args': {
+                "min": minimum,
+                "max": maximum
+            }
+        }
     elif cost_str == Cost.one_minus_erf.value:
+        maximum = mean + cost_max * std
         cost = OneMinusErf(
-            mean + cost_max * std,
+            maximum,
             mean,
             std
         )
@@ -99,10 +125,19 @@ def get_cost_global(cost_str, minimum, maximum, mean, std, cost_min, cost_max, z
         # so we can numerically distinguish more
         # very bright voxels
         cost.setZFudge(z_fudge)
+        params['fill_cost_function'] = {
+            'name': Cost.one_minus_erf.value,
+            "args": {
+                "max": maximum,
+                "average": mean,
+                "standardDeviation": std,
+                "zFudge": z_fudge
+            }
+        }
     else:
         raise ValueError(f"Invalid cost {cost_str}")
 
-    return cost
+    return cost, params
 
 
 def fill_swcs(
@@ -131,7 +166,7 @@ def fill_swcs(
         logging.info(f"Computing stats took {time.time() - t0}s")
         logging.info(f"Global mean: {mean}, std: {std}, min: {minimum}, max: {maximum}")
 
-        cost = get_cost_global(cost_str, minimum, maximum, mean, std, cost_min, cost_max)
+        cost, params = get_cost_global(cost_str, mean, std, cost_min, cost_max)
 
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
@@ -148,12 +183,14 @@ def fill_swcs(
             continue
 
         if not use_global_stats:
-            cost = get_cost(im, cost_str, cost_min, cost_max)
+            cost, params = get_cost(im, cost_str)
 
-        # Wrap ndarray as imglib2 Img, using util memory
+        logging.info(f"cost params: {params}")
+
+        # Wrap ndarray as imglib2 Img, using shared memory
         # keep the reference in scope until the object is safe to be garbage collected
         img, ref_store = imglyb.as_cell_img(
-            im, chunk_shape=(64, 64, 64), cache=100
+            im, chunk_shape=im.shape, cache=100
         )
 
         filler_threads = []
@@ -179,6 +216,10 @@ def fill_swcs(
             converter.convertLabels(mask)
             mask_name = img_name + "_Fill_Label_Mask.n5"
             save_mask(mask, out_mask_dir, mask_name, as_n5)
+
+        # save cost params
+        with open(os.path.join(out_mask_dir, img_name + "_fill_params.json"), 'w') as f:
+            json.dump(params, f)
 
 
 def save_mask(mask, mask_dir, mask_name, as_n5=False):
