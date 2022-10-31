@@ -76,17 +76,11 @@ def copy_masks(src: Path, dst: Path):
     assert blocks_dir.is_dir()
 
     for p in src.iterdir():
-        if not p.is_dir():
-            continue
-        if "masks" not in p.name:
+        if not p.is_dir() or "masks" not in p.name:
             continue
         args = find_args(p)
         if args is None:
             raise FileNotFoundError(f"Could not find args.json in {p}")
-
-        fill_threshold = float(args['threshold'])
-        fill_cost_function = str(args['cost'])
-
         for f in p.iterdir():
             m = block_pattern.search(f.name)
             if not m:
@@ -94,7 +88,11 @@ def copy_masks(src: Path, dst: Path):
             block_id = m.group(0)
 
             m = mask_pattern.search(f.name)
+            if not m:
+                continue
             mask_type = m.group(0)
+
+            fill_params = json.loads(Path(p / (block_id + "_fill_params.json")).read_text())
 
             block_dir = blocks_dir / block_id
             shutil.copyfile(f, block_dir / mask_type)
@@ -103,8 +101,8 @@ def copy_masks(src: Path, dst: Path):
             with open(metadata_file, 'r') as mf:
                 metadata = json.load(mf)
 
-            metadata['fill_threshold'] = fill_threshold
-            metadata['fill_cost_function'] = fill_cost_function
+            metadata['fill_cost_function'] = fill_params['fill_cost_function']
+            metadata['fill_threshold'] = float(args['threshold'])
             metadata['fill_method'] = "dijkstra"
 
             with open(metadata_file, 'w') as mf:
