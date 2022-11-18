@@ -1,5 +1,7 @@
 import json
 import os
+import shutil
+from pathlib import Path
 
 import scyjava
 
@@ -83,6 +85,17 @@ def crop_img_from_swcs(
         json.dump(chunk_metadata, f)
 
     print("Done")
+
+
+def consolidate_blocks(block_dir: str, out_dir: str):
+    os.makedirs(out_dir, exist_ok=True)
+    for d in Path(block_dir).iterdir():
+        if not d.name.startswith("block"):
+            continue
+        block = d / "input.tif"
+        if not block.is_file():
+            continue
+        shutil.copyfile(block, Path(out_dir) / (d.name + ".tif"))
 
 
 if __name__ == "__main__":
