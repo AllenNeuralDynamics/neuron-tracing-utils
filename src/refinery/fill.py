@@ -64,8 +64,8 @@ def get_cost(im, cost_str, z_fudge=DEFAULT_Z_FUDGE):
     params = {}
 
     if cost_str == Cost.reciprocal.value:
-        mean = np.mean(im)
-        maximum = np.max(im)
+        mean = float(np.mean(im))
+        maximum = float(np.max(im))
         cost = Reciprocal(mean, maximum)
         params['fill_cost_function'] = {
             'name': Cost.reciprocal.value,
