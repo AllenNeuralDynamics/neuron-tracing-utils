@@ -37,20 +37,9 @@ def copy_blocks(src: Path, dst: Path, voxel_spacing: list):
 
         shutil.copyfile(stack, out_block / "input.tif")
 
-        block_metadata = {}
-
-        # TODO: refactor for block creation script change
-        origin_file = block / "origin_vx.txt"
-        with open(origin_file, 'r') as f:
-            s = f.readline()
-            s = s.replace("[", "")
-            s = s.replace("]", "")
-            o = np.fromstring(s, dtype=int, sep=' ')
-            origin = o.tolist()
-            block_metadata['chunk_origin'] = origin
-
-        block_shape = list(reversed(get_tiff_shape(stack)))
-        block_metadata['chunk_shape'] = block_shape
+        metadata_file = block / "metadata.json"
+        with open(metadata_file, 'r') as f:
+            block_metadata = json.load(f)
 
         block_metadata['voxel_spacing'] = voxel_spacing
 
@@ -178,8 +167,8 @@ def find_pyproject():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("input", type=str)
-    parser.add_argument("output", type=str)
+    parser.add_argument("--input", type=str)
+    parser.add_argument("--output", type=str)
     parser.add_argument("--voxel-size", type=float, nargs='+', default=[1.0, 1.0, 1.0])
     args = parser.parse_args()
 
