@@ -1,6 +1,6 @@
 import os
 
-_default_snt_version = "4.0.3"
+_default_snt_version = "4.1.12"
 _snt_version = os.getenv("SNT_VERSION", _default_snt_version)
 
 _default_fiji_version = "2.9.0"
