@@ -34,6 +34,14 @@ def _java_setup():
     BitType = scyjava.jimport("net.imglib2.type.logic.BitType")
     global DoubleType
     DoubleType = scyjava.jimport("net.imglib2.type.numeric.real.DoubleType")
+    global Converters
+    Converters = scyjava.jimport("net.imglib2.converter.Converters")
+    global RealDoubleConverter
+    RealDoubleConverter = scyjava.jimport("net.imglib2.converter.RealDoubleConverter")
+    global NLinearInterpolatorFactory
+    NLinearInterpolatorFactory = scyjava.jimport("net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory")
+    global RandomAccessibleInterval
+    RandomAccessibleInterval = scyjava.jimport("net.imglib2.RandomAccessibleInterval")
     global DiskCachedCellImgFactory
     DiskCachedCellImgFactory = scyjava.jimport(
         "net.imglib2.cache.img.DiskCachedCellImgFactory"
