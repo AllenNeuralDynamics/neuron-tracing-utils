@@ -16,7 +16,7 @@ def bbox(points):
 def chunk_center(point, side_lengths):
     """chunk from center point"""
     center = np.array(point)
-    side_lengths = np.array(side_lengths)
+    side_lengths = np.array(side_lengths) - 1
     origin = np.ceil(center - side_lengths / 2.0)
     corner = origin + side_lengths
     origin = np.round(origin).astype(int)
