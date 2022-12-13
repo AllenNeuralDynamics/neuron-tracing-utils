@@ -70,20 +70,17 @@ def parse_args():
 def patches_from_points(img, points, block_size):
     logging.debug(f"Using window size: {block_size}")
     patches = []
-    translated_points = []
     for p in points:
-        arr = np.array([p.getX(), p.getY(), p.getZ()])
         interval = chunk_center([p.getX(), p.getY(), p.getZ()], block_size)
-        origin = np.array(list(interval.minAsLongArray()))
-        translated_points.append(arr - origin)
         patch = imglib2.Views.interval(img, interval)
         patches.append(patch)
-    return patches, translated_points
+    return patches
 
 
 def save_patch(patch, path):
     imp = imglib2.ImageJFunctions.wrap(patch, "")
     imagej1.IJ.saveAsTiff(imp, str(path))
+
 
 def save_patches(patches, out_dir, n_threads=1):
     out_dir = Path(out_dir)
@@ -99,7 +96,7 @@ def save_points(points, out_dir):
     for i, p in enumerate(points):
         patch_name = f"patch-{i:05}"
         g = snt.DirectedWeightedGraph()
-        g.addVertex(p[0], p[1], p[2])
+        g.addVertex(p)
         g.getTree().saveAsSWC(str(out_dir / (patch_name + ".swc")))
 
 
@@ -188,11 +185,11 @@ def main():
             logging.info("Mean shift done.")
 
         logging.info("Computing patches")
-        patches, offset_points = patches_from_points(
+        patches = patches_from_points(
             img, points, block_size=block_size
         )
         logging.info("Saving point coordinates as SWC")
-        save_points(offset_points, point_dir)
+        save_points(points, point_dir)
         logging.info("Saving patches")
         save_patches(patches, image_dir, n_threads=args.threads)
 
