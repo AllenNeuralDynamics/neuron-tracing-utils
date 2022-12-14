@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument(
         "--swcs",
         type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-10-01\swcs-batch1",
+        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\swcs-batch1",
     )
     parser.add_argument(
         "--structure",
@@ -41,7 +41,7 @@ def parse_args():
     parser.add_argument(
         "--output",
         type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-10-01\endpoint-patches",
+        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\patches-meanshift",
     )
     parser.add_argument(
         "--do-mean-shift",
@@ -133,8 +133,6 @@ def main():
     args = parse_args()
 
     output = Path(args.output)
-    if output.is_dir():
-        shutil.rmtree(output)
 
     block_size = list(ast.literal_eval(args.block_size))
     logging.info(f"Using block size: {block_size}")
@@ -161,20 +159,23 @@ def main():
 
         g = snt.Tree(str(swc)).getGraph()
 
-        if args.structure == "endpoints":
-            points = g.getTips()
-        elif args.structure == "branches":
-            points = g.getBPs()
-        elif args.structure == "soma":
+        struct = args.structure
+
+        if struct == "endpoints":
+            points = list(g.getTips())
+            logging.info(f"{len(points)} endpoints will be processed")
+        elif struct == "branches":
+            points = list(g.getBPs())
+            logging.info(f"{len(points)} branches will be processed")
+        elif struct == "soma":
             points = [g.getRoot()]
+            logging.info("soma will be processed")
         else:
             raise ValueError(f"Invalid structure: {args.structure}")
 
-        logging.info(f"{len(points)} ROIs will be processed")
-
         if args.do_mean_shift:
-            logging.info("Doing mean shift...")
             interpolant = interploate_img(img)
+            logging.info(f"Doing mean shift for {struct}...")
             mean_shift_points(
                 points=points,
                 img=interpolant,
@@ -189,9 +190,9 @@ def main():
             img, points, block_size=block_size
         )
         logging.info("Saving point coordinates as SWC")
-        save_points(points, point_dir)
+        save_points(points, point_dir / struct)
         logging.info("Saving patches")
-        save_patches(patches, image_dir, n_threads=args.threads)
+        save_patches(patches, image_dir / struct, n_threads=args.threads)
 
 
 if __name__ == "__main__":
