@@ -70,11 +70,16 @@ def parse_args():
 def patches_from_points(img, points, block_size):
     logging.debug(f"Using window size: {block_size}")
     patches = []
+    translated_points = []
     for p in points:
+        arr = np.array([p.getX(), p.getY(), p.getZ()])
         interval = chunk_center([p.getX(), p.getY(), p.getZ()], block_size)
+        origin = np.array(list(interval.minAsLongArray()))
+        offset = arr - origin
+        translated_points.append(snt.SWCPoint(0, 1, offset[0], offset[1], offset[2], 1.0, -1))
         patch = imglib2.Views.interval(img, interval)
         patches.append(patch)
-    return patches
+    return patches, translated_points
 
 
 def save_patch(patch, path):
@@ -186,11 +191,13 @@ def main():
             logging.info("Mean shift done.")
 
         logging.info("Computing patches")
-        patches = patches_from_points(
+        patches, offset_points = patches_from_points(
             img, points, block_size=block_size
         )
         logging.info("Saving point coordinates as SWC")
-        save_points(points, point_dir / struct)
+        save_points(points, point_dir / struct / "locations")
+        logging.info("Saving patch-aligned coordinates as SWC")
+        save_points(offset_points, point_dir / struct / "patch-aligned")
         logging.info("Saving patches")
         save_patches(patches, image_dir / struct, n_threads=args.threads)
 
