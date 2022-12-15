@@ -8,9 +8,9 @@ from pathlib import Path
 import numpy as np
 import scyjava
 from PIL import Image
-from skimage.exposure import rescale_intensity
 from skimage.color import gray2rgb
 from skimage.draw import circle_perimeter
+from skimage.exposure import rescale_intensity
 from skimage.io import imsave
 from tifffile import tifffile
 
@@ -63,11 +63,11 @@ def write_label_mips(label_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0, alp
                     out_range=np.uint8
                 )
             )
-            labels = gray2rgb(tifffile.imread(str(mask_path)).max(axis=0) * 255).astype(np.uint8)
+            labels = gray2rgb(tifffile.imread(str(mask_path)).max(axis=0)).astype(np.uint8)
             labels = labels * red_multiplier
             raw_im = Image.fromarray(raw).convert("RGBA")
             label_im = Image.fromarray(labels).convert("RGBA")
-            blended = Image.blend(raw_im, label_im, 0.5)
+            blended = Image.blend(raw_im, label_im, alpha)
             out = out_mip_dir / (name + ".png")
             out.parent.mkdir(parents=True, exist_ok=True)
             blended.save(out)
@@ -76,27 +76,15 @@ def write_label_mips(label_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0, alp
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--input",
+        type=str,
+        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\patches-meanshift-dog"
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-meanshift\G-115_consensus",
         help="directory to output MIPs",
-    )
-    parser.add_argument(
-        "--images",
-        type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-meanshift\G-115_consensus\images",
-        help="directory of images associated with the .swc files",
-    )
-    parser.add_argument(
-        "--swcs",
-        type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-meanshift\G-115_consensus\swcs",
-        help="directory of .swc files to render",
-    )
-    parser.add_argument(
-        "--labels",
-        type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-meanshift\G-115_consensus\labels\masks"
     )
     parser.add_argument(
         "--vmin",
@@ -125,21 +113,35 @@ def main():
 
     scyjava.start_jvm()
 
-    write_circle_mips(
-        args.swcs,
-        args.images,
-        os.path.join(args.output, "orig"),
-        args.vmin,
-        args.vmax,
-    )
-
-    write_label_mips(
-        Path(args.labels),
-        Path(args.images),
-        Path(args.output) / "orig",
-        args.vmin,
-        args.vmax,
-    )
+    indir = Path(args.input)
+    for neuron_dir in indir.iterdir():
+        mip_dir = neuron_dir / "mips"
+        mip_dir.mkdir(exist_ok=True)
+        swc_dir = neuron_dir / "swcs"
+        image_dir = neuron_dir / "images"
+        mask_dir = neuron_dir / "masks"
+        for struct_dir in swc_dir.iterdir():
+            aligned_swcs = struct_dir / "patch-aligned"
+            struct_image_dir = image_dir / struct_dir.name
+            struct_mip_dir = mip_dir / "points" / struct_dir.name
+            struct_mip_dir.mkdir(parents=True, exist_ok=True)
+            write_circle_mips(
+                aligned_swcs,
+                struct_image_dir,
+                struct_mip_dir,
+                args.vmin,
+                args.vmax,
+            )
+            struct_mip_dir = mip_dir / "labels" / struct_dir.name
+            struct_mip_dir.mkdir(parents=True, exist_ok=True)
+            struct_mask_dir = mask_dir / struct_dir.name
+            write_label_mips(
+                struct_mask_dir,
+                struct_image_dir,
+                struct_mip_dir,
+                args.vmin,
+                args.vmax,
+            )
 
 
 if __name__ == "__main__":
