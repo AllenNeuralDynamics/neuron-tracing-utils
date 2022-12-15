@@ -34,14 +34,22 @@ def _java_setup():
     BitType = scyjava.jimport("net.imglib2.type.logic.BitType")
     global DoubleType
     DoubleType = scyjava.jimport("net.imglib2.type.numeric.real.DoubleType")
+    global FloatType
+    FloatType = scyjava.jimport("net.imglib2.type.numeric.real.FloatType")
     global Converters
     Converters = scyjava.jimport("net.imglib2.converter.Converters")
     global RealDoubleConverter
-    RealDoubleConverter = scyjava.jimport("net.imglib2.converter.RealDoubleConverter")
+    RealDoubleConverter = scyjava.jimport(
+        "net.imglib2.converter.RealDoubleConverter"
+    )
     global NLinearInterpolatorFactory
-    NLinearInterpolatorFactory = scyjava.jimport("net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory")
+    NLinearInterpolatorFactory = scyjava.jimport(
+        "net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory"
+    )
     global RandomAccessibleInterval
-    RandomAccessibleInterval = scyjava.jimport("net.imglib2.RandomAccessibleInterval")
+    RandomAccessibleInterval = scyjava.jimport(
+        "net.imglib2.RandomAccessibleInterval"
+    )
     global DiskCachedCellImgFactory
     DiskCachedCellImgFactory = scyjava.jimport(
         "net.imglib2.cache.img.DiskCachedCellImgFactory"
@@ -58,6 +66,8 @@ def _java_setup():
     Point = scyjava.jimport("net.imglib2.Point")
     global LoopBuilder
     LoopBuilder = scyjava.jimport("net.imglib2.loops.LoopBuilder")
+    global DifferenceOfGaussian
+    DifferenceOfGaussian = scyjava.jimport("net.imglib2.algorithm.dog.DifferenceOfGaussian")
 
 
 scyjava.when_jvm_starts(_java_setup)
