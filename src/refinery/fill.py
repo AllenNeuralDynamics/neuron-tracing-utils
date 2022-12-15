@@ -228,7 +228,7 @@ def fill_patches(
                     logging.info(f"Saving gray mask {mask_name}")
                     save_mask(mask, struct_mask_dir, mask_name, as_n5=False)
                 if export_binary:
-                    mask = imglib2.DiskCachedCellImgFactory(imglib2.UnsignedByteType()).create(
+                    mask = imglib2.DiskCachedCellImgFactory(imglib2.BitType()).create(
                         img.dimensionsAsLongArray()
                     )
                     converter.convertBinary(mask)
