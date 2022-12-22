@@ -151,6 +151,7 @@ def patches_from_points(darray, points, block_size):
 
 
 def save_patch(darray, path):
+    logging.info("Saving patch: ", path)
     tifffile.imwrite(path, darray.compute())
 
 
@@ -172,15 +173,15 @@ def save_points(points, out_dir):
         g.getTree().saveAsSWC(str(out_dir / (patch_name + ".swc")))
 
 
-def mean_shift_helper(point, img, radius=4, n_iter=1, do_log=False, log_sigma=0.6, voxel_size=None):
-    i = chunk_center([point.z, point.y, point.x], [64, 64, 64])
+def mean_shift_helper(point, img, radius=4, n_iter=1, do_log=False, log_sigma=1, voxel_size=None):
+    i = chunk_center([point.z, point.y, point.x], [128, 128, 128])
     block = img[i.min(0):i.max(0), i.min(1):i.max(1), i.min(2):i.max(2)].compute()
     if do_log:
         sigmas = log_sigma / np.array(voxel_size)
         block = gaussian_laplace(block.astype(np.float64), sigmas, output=np.float64)
-        block = rescale_intensity(block, out_range=np.uint16)
-        # Make dark blobs bright
-        block = skimage.util.invert(block)
+        # Only keep negative part of response (bright changes)
+        block = rescale_intensity(np.abs(np.clip(block, a_min=None, a_max=0)), out_range=np.uint16)
+        # print(block.min(), block.max())
     mean_shift_point(point, block, radius, n_iter, interval=i)
 
 
