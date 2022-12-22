@@ -2,126 +2,26 @@ import argparse
 import itertools
 import json
 import logging
-import math
 import os
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use('TkAgg')
-
 import numpy as np
-import matplotlib.pyplot as plt
-
-from refinery.util.java import snt
-from refinery.util.java import imglib2, imagej1
-from refinery.util import sntutil, imgutil
-
 import scyjava
-from jpype import JArray, JLong, JDouble
+from tifffile import tifffile
+
+from refinery.util.java import imglib2, imagej1
+from refinery.util.java import snt
 
 
 class RefineMode(Enum):
-    naive = "naive"
+    mean_shift = "mean_shift"
     fit = "fit"
 
 
-def refine_point_old(
-        swc_point, img, sphere_radius=1, region_shape="block", region_pad=None
-):
-    """Creates a shape neighborhood centered at an SWCPoint in img,
-    iterates through each pixel in the neighborhood, creates a local hypersphere around each pixel
-    and measures mean intensity, keeping track of the maximum encountered mean,
-    then use the position of the final maximum to snap the SWCPoint to. Because this is a brute-force solution,
-    it is very slow."""
-    print(f"refining point {str(swc_point)}")
-    if region_pad is None:
-        region_pad = [1, 1, 1]
-    chunk = None
-    if region_shape == "block":
-        chunk = sntutil.swcpoint_to_block(img, swc_point, region_pad)
-    elif region_shape == "sphere":
-        chunk = sntutil.swcpoint_to_sphere(
-            img, swc_point, sum(region_pad) / len(region_pad)
-        )
-    cursor = chunk.localizingCursor()
-    maximum = float("-inf")
-    bestPosition = JArray(JLong, 1)(3)
-    # right now this is just the maximum of the mean intensities
-    while cursor.hasNext():
-        cursor.fwd()
-        local_distribution = list(
-            imgutil.local_intensities(
-                imglib2.HyperSphere(img, cursor, sphere_radius)
-            )
-        )
-        if len(local_distribution) == 0:
-            continue
-        mean = sum(local_distribution) / len(local_distribution)
-        if mean > maximum:
-            maximum = mean
-            cursor.localize(bestPosition)
-    swc_point.x = bestPosition[0]
-    swc_point.y = bestPosition[1]
-    swc_point.z = bestPosition[2]
-
-
-def minmax(cursor):
-    import java
-
-    mn = float("inf")
-    mx = float("-inf")
-    while cursor.hasNext():
-        cursor.fwd()
-        try:
-            val = cursor.get().get()
-        except java.lang.ArrayIndexOutOfBoundsException:
-            continue
-        mn = min(val, mn)
-        mx = max(val, mx)
-    return mn, mx
-
-
-def mean(cursor):
-    import java
-
-    s = 0
-    c = 0
-    while cursor.hasNext():
-        cursor.fwd()
-        try:
-            val = cursor.get().get()
-        except java.lang.ArrayIndexOutOfBoundsException:
-            continue
-        s += val
-        c += 1
-    return s / c
-
-
-def mean_interp(ra, x, y, z, radius):
-    rr = radius ** 2
-    pos = JArray(JDouble, 1)(3)
-    s = 0
-    n = 0
-    for dx in np.linspace(x - radius, x + radius, 2 * radius + 1, dtype=float):
-        for dy in np.linspace(y - radius, y + radius, 2 * radius + 1, dtype=float):
-            for dz in np.linspace(z - radius, z + radius, 2 * radius + 1, dtype=float):
-                dd = (dx - x) ** 2 + (dy - y) ** 2 + (dz - z) ** 2
-                if dd > rr:
-                    continue
-                pos[0] = dx
-                pos[1] = dy
-                pos[2] = dz
-                s += ra.setPositionAndGet(pos).get()
-                n += 1
-    return s / n
-
-
-def mean_shift_point(swc_point, img, radius, n_iter=10):
-    eps = 1e-6
-    disp = 1.0
+def mean_shift_point(swc_point, img, radius, n_iter=10, interval=None):
+    disp = float("inf")
     x = swc_point.x
     y = swc_point.y
     z = swc_point.z
@@ -130,47 +30,60 @@ def mean_shift_point(swc_point, img, radius, n_iter=10):
     cz = z
     rr = radius ** 2
 
-    ra = img.realRandomAccess()
-    pos = JArray(JDouble, 1)(3)
+    print(f"initial point: {[z, y, x]}")
 
-    print("initial point: ", [swc_point.x, swc_point.y, swc_point.z])
+    if interval is not None:
+        gz, gy, gx = np.mgrid[
+                     interval.min(0):interval.max(0),
+                     interval.min(1):interval.max(1),
+                     interval.min(2):interval.max(2)
+                     ]
+    else:
+        gz, gy, gx = np.mgrid[
+                     0:img.shape[0],
+                     0:img.shape[1],
+                     0:img.shape[2]
+                     ]
 
     count = 0
     displacements = []
-    max_disp = 2.0
-    while disp >= 0.25 and count < n_iter:
+    while disp >= 0.5 and count < n_iter:
         count += 1
-        sx = 0
-        sy = 0
-        sz = 0
-        sw = 0
-        n = 0
-        avg = mean_interp(ra, x, y, z, radius)
-        for dx in np.linspace(x - radius, x + radius, 2 * radius + 1, dtype=float):
-            for dy in np.linspace(y - radius, y + radius, 2 * radius + 1, dtype=float):
-                for dz in np.linspace(z - radius, z + radius, 2 * radius + 1, dtype=float):
-                    dd = (dx - x) ** 2 + (dy - y) ** 2 + (dz - z) ** 2
-                    if dd > rr:
-                        continue
-                    pos[0] = dx
-                    pos[1] = dy
-                    pos[2] = dz
-                    w = ra.setPositionAndGet(pos).get() - avg
-                    if w > 0:
-                        sx += dx * w
-                        sy += dy * w
-                        sz += dz * w
-                        sw += w
-                        n += 1
 
-        if n == 0:
-            return [0]
+        # get locations corresponding to the sphere centered at z,y,x
+        r = (gx - x) ** 2 + (gy - y) ** 2 + (gz - z) ** 2
+        s_idx = np.argwhere(r <= rr)
 
-        cx = sx / sw
-        cy = sy / sw
-        cz = sz / sw
+        # get the intensity values
+        vals = img[s_idx[:, 0], s_idx[:, 1], s_idx[:, 2]]
 
-        disp = (cx - x) ** 2 + (cy - y) ** 2 + (cz - z) ** 2
+        # compute weights
+        w = vals - vals.mean()
+
+        # get positive weights and their indices
+        w_idx = np.argwhere(w > 0)
+        if w_idx.size == 0:
+            return
+        w_pos = w[w_idx[:, 0]]
+
+        # get indices of positive weights in the sphere
+        inds = s_idx[w_idx].squeeze()
+
+        # get coordinates of these points in the original array
+        zs = gz[inds[:, 0], inds[:, 1], inds[:, 2]]
+        ys = gy[inds[:, 0], inds[:, 1], inds[:, 2]]
+        xs = gx[inds[:, 0], inds[:, 1], inds[:, 2]]
+
+        # add dummy dim for broadcasting purposes
+        w_pos = w_pos[..., np.newaxis]
+        # compute shifted coordinate
+        c = np.round((np.column_stack((zs, ys, xs)) * w_pos).sum(axis=0) / w_pos.sum())
+
+        cz = c[0]
+        cy = c[1]
+        cx = c[2]
+
+        disp = np.linalg.norm(c - np.array([z, y, x]))
         displacements.append(disp)
 
         x = cx
@@ -181,40 +94,22 @@ def mean_shift_point(swc_point, img, radius, n_iter=10):
     swc_point.y = cy
     swc_point.z = cz
 
-    print(f"adjusted: {cx} {cy} {cz}")
+    print(f"adjusted: {cz} {cy} {cx}")
 
     return displacements
 
 
-def refine_graph(graph, img, radius, n_iter):
-    Converters = imglib2.Converters
-    RealDoubleConverter = imglib2.RealDoubleConverter
-    DoubleType = imglib2.DoubleType
-    Views = imglib2.Views
-    NLinearInterpolatorFactory = imglib2.NLinearInterpolatorFactory
-    RandomAccessibleInterval = imglib2.RandomAccessibleInterval
-
-    floatImg = Converters.convert(RandomAccessibleInterval @ img, RealDoubleConverter(), DoubleType())
-    interpolant = Views.interpolate(Views.extendZero(floatImg), NLinearInterpolatorFactory())
-
+def refine_graph(graph, img, radius, n_iter, n_threads=8):
     vertices = (v for v in graph.vertexSet())
-    displacements = []
-    for v in vertices:
-        d = mean_shift_point(v, interpolant, radius, n_iter)
-        while len(d) < n_iter:
-            d.append(0)
-        displacements.append(d)
-    return np.array(displacements, dtype=float)
-
-    # times = graph.vertexSet().size()
-    # with ThreadPoolExecutor(8) as executor:
-    #     ret = executor.map(
-    #         mean_shift_point,
-    #         vertices,
-    #         itertools.repeat(interpolant, times),
-    #         itertools.repeat(radius, times),
-    #         itertools.repeat(10,  times)
-    #     )
+    times = graph.vertexSet().size()
+    with ThreadPoolExecutor(max_workers=n_threads) as executor:
+        executor.map(
+            mean_shift_point,
+            vertices,
+            itertools.repeat(img, times),
+            itertools.repeat(radius, times),
+            itertools.repeat(n_iter, times)
+        )
 
 
 def fit_tree(tree, img, radius=1):
@@ -228,7 +123,7 @@ def fit_tree(tree, img, radius=1):
 
 
 def refine_swcs(
-        in_swc_dir, out_swc_dir, imdir, radius=1, mode=RefineMode.naive.value
+        in_swc_dir, out_swc_dir, imdir, radius=1, mode=RefineMode.mean_shift.value, threads=1
 ):
     loader = imglib2.IJLoader()
     IJ = imagej1.IJ
@@ -245,11 +140,11 @@ def refine_swcs(
 
             tree = snt.Tree(swc_path)
 
-            if mode == RefineMode.naive.value:
+            if mode == RefineMode.mean_shift.value:
                 tif = os.path.join(imdir, os.path.basename(root) + ".tif")
-                img = loader.get(tif)
+                img = tifffile.imread(tif)
                 graph = tree.getGraph()
-                refine_graph(graph, img, radius, n_iter=20)
+                refine_graph(graph, img, radius, n_iter=5, n_threads=threads)
                 graph.getTree().saveAsSWC(out_swc)
             elif mode == RefineMode.fit.value:
                 # Versions prior to 4.04 only accept ImagePlus inputs
@@ -267,14 +162,16 @@ def refine_swcs(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--input", type=str,
+        "--input",
+        type=str,
         default=r"C:\Users\cameron.arshadi\Desktop\repos\20210812-AG-training-data\aligned\swcs\block_3",
-        help="directory of .swc files to refine"
+        help="directory of .swc files to refine",
     )
     parser.add_argument(
-        "--output", type=str,
+        "--output",
+        type=str,
         default=r"C:\Users\cameron.arshadi\Desktop\repos\20210812-AG-training-data\aligned\swcs\block_3\refined",
-        help="directory to output refined .swc files"
+        help="directory to output refined .swc files",
     )
     parser.add_argument(
         "--images",
@@ -285,7 +182,7 @@ def main():
     parser.add_argument(
         "--mode",
         choices=[mode.value for mode in RefineMode],
-        default=RefineMode.naive.value,
+        default=RefineMode.mean_shift.value,
         help="algorithm type",
     )
     parser.add_argument(
@@ -293,6 +190,11 @@ def main():
         type=int,
         default=2,
         help="search radius for point refinement",
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=1
     )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
@@ -310,7 +212,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting refinement...")
-    refine_swcs(args.input, args.output, args.images, args.radius, args.mode)
+    refine_swcs(args.input, args.output, args.images, args.radius, args.mode, args.threads)
     logging.info("Finished refinement.")
 
 
