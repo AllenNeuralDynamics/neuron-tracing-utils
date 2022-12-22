@@ -5,17 +5,22 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+# import dask
+# dask.config.set(scheduler='synchronous')
+
+import dask.array as da
 import numpy as np
 import scyjava
-from jpype import JArray, JLong
-from scipy import optimize
+import skimage.util
+import tifffile
+import zarr
+from scipy.ndimage import gaussian_laplace
+from skimage.exposure import rescale_intensity
+from zarr.errors import PathNotFoundError
 
 from refinery.refine import mean_shift_point
 from refinery.transform import WorldToVoxel
 from refinery.util.chunkutil import chunk_center
-from refinery.util.imgutil import get_hyperslice, dog, invert, interploate
-from refinery.util.ioutil import ImgReaderFactory
-from refinery.util.java import imglib2, imagej1
 from refinery.util.java import snt
 
 
@@ -42,17 +47,17 @@ def parse_args():
     parser.add_argument(
         "--output",
         type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\patches-meanshift",
+        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-all",
     )
     parser.add_argument(
         "--do-mean-shift",
-        default=False,
+        default=True,
         action="store_true"
     )
     parser.add_argument(
         "--mean-shift-iter",
         type=int,
-        default=1
+        default=5
     )
     parser.add_argument(
         "--mean-shift-radius",
@@ -62,7 +67,7 @@ def parse_args():
     parser.add_argument(
         "--threads",
         type=int,
-        default=1
+        default=8
     )
     parser.add_argument(
         "--transform",
@@ -70,84 +75,83 @@ def parse_args():
         default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\transform.txt"
     )
     parser.add_argument(
-        "--dog",
-        default=False,
+        "--laplacian",
+        default=True,
         action="store_true",
-        help="use difference of gaussian for endpoint refinement"
+        help="use Laplacian of Gaussian filter for point refinement"
     )
     args = parser.parse_args()
     return args
 
 
-def objective(current_answer, r, img, side_lengths, max_value, min_value):
-    cx, cy, cz = current_answer
-    cx = round(cx)
-    cy = round(cy)
-    cz = round(cz)
-    interval = chunk_center([cx, cy, cz], side_lengths)
-    block = imglib2.Views.interval(img, interval)
-    pos = JArray(JLong, 1)(3)
-    ra = block.randomAccess()
-    badness = 0
-    for x in range(block.min(0), block.max(0) + 1):
-        for y in range(block.min(1), block.max(1) + 1):
-            for z in range(block.min(2), block.max(2) + 1):
-                pos[0] = x
-                pos[1] = y
-                pos[2] = z
-                val = ra.setPositionAndGet(pos).get()
-                if r ** 2 > ((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2):
-                    badness += (max_value - val) ** 2
-                else:
-                    badness += (val - min_value) ** 2
-    # normalize by number of voxels
-    badness /= np.product(side_lengths, dtype=int)
-    return badness
+# def objective(current_answer, r, img, side_lengths, max_value, min_value):
+#     cx, cy, cz = current_answer
+#     cx = round(cx)
+#     cy = round(cy)
+#     cz = round(cz)
+#     interval = chunk_center([cx, cy, cz], side_lengths)
+#     block = imglib2.Views.interval(img, interval)
+#     pos = JArray(JLong, 1)(3)
+#     ra = block.randomAccess()
+#     badness = 0
+#     for x in range(block.min(0), block.max(0) + 1):
+#         for y in range(block.min(1), block.max(1) + 1):
+#             for z in range(block.min(2), block.max(2) + 1):
+#                 pos[0] = x
+#                 pos[1] = y
+#                 pos[2] = z
+#                 val = ra.setPositionAndGet(pos).get()
+#                 if r ** 2 > ((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2):
+#                     badness += (max_value - val) ** 2
+#                 else:
+#                     badness += (val - min_value) ** 2
+#     # normalize by number of voxels
+#     badness /= np.product(side_lengths, dtype=int)
+#     return badness
+#
+#
+# def optimize_point(point, radius, img, side_lengths, max_value, min_value):
+#     x0 = np.array([point.x, point.y, point.z], dtype=int)
+#     print(f"Initial coordinate: {x0}")
+#     bounds = [
+#         (point.x - side_lengths[0] // 2, point.x + side_lengths[0] // 2),
+#         (point.y - side_lengths[1] // 2, point.y + side_lengths[1] // 2),
+#         (point.z - side_lengths[2] // 2, point.z + side_lengths[2] // 2),
+#     ]
+#     args = (radius, img, side_lengths, max_value, min_value)
+#     ret = optimize.minimize(objective, x0, args=args, bounds=bounds, method="Nelder-Mead")
+#     print(ret.message)
+#     solution = ret.x
+#     point.x = solution[0]
+#     point.y = solution[1]
+#     point.z = solution[2]
+#     print(f"Optimized coordinate: {solution}")
+#
+#
+# def optimize_points(points, radius, img, side_lengths, max_value, min_value):
+#     N = len(points)
+#     for i, p in enumerate(points):
+#         logging.info(f"optimizing point {i + 1}/{N}")
+#         optimize_point(p, radius, img, side_lengths, max_value, min_value)
 
 
-def optimize_point(point, radius, img, side_lengths, max_value, min_value):
-    x0 = np.array([point.x, point.y, point.z], dtype=int)
-    print(f"Initial coordinate: {x0}")
-    bounds = [
-        (point.x - side_lengths[0] // 2, point.x + side_lengths[0] // 2),
-        (point.y - side_lengths[1] // 2, point.y + side_lengths[1] // 2),
-        (point.z - side_lengths[2] // 2, point.z + side_lengths[2] // 2),
-    ]
-    args = (radius, img, side_lengths, max_value, min_value)
-    ret = optimize.minimize(objective, x0, args=args, bounds=bounds, method="Nelder-Mead")
-    print(ret.message)
-    solution = ret.x
-    point.x = solution[0]
-    point.y = solution[1]
-    point.z = solution[2]
-    print(f"Optimized coordinate: {solution}")
-
-
-def optimize_points(points, radius, img, side_lengths, max_value, min_value):
-    N = len(points)
-    for i, p in enumerate(points):
-        logging.info(f"optimizing point {i + 1}/{N}")
-        optimize_point(p, radius, img, side_lengths, max_value, min_value)
-
-
-def patches_from_points(img, points, block_size):
+def patches_from_points(darray, points, block_size):
     logging.debug(f"Using window size: {block_size}")
     patches = []
     translated_points = []
     for p in points:
-        arr = np.array([p.getX(), p.getY(), p.getZ()])
-        interval = chunk_center([p.getX(), p.getY(), p.getZ()], block_size)
-        origin = np.array(list(interval.minAsLongArray()))
+        arr = np.array([p.getZ(), p.getY(), p.getX()])
+        i = chunk_center(arr, block_size)
+        origin = np.array(list(i.minAsLongArray()))
         offset = arr - origin
-        translated_points.append(snt.SWCPoint(0, 1, offset[0], offset[1], offset[2], 1.0, -1))
-        patch = imglib2.Views.interval(img, interval)
+        translated_points.append(snt.SWCPoint(0, 1, offset[2], offset[1], offset[0], 1.0, -1))
+        patch = darray[i.min(0):i.max(0), i.min(1):i.max(1), i.min(2):i.max(2)]
         patches.append(patch)
     return patches, translated_points
 
 
-def save_patch(patch, path):
-    imp = imglib2.ImageJFunctions.wrap(patch, "")
-    imagej1.IJ.saveAsTiff(imp, str(path))
+def save_patch(darray, path):
+    tifffile.imwrite(path, darray.compute())
 
 
 def save_patches(patches, out_dir, n_threads=1):
@@ -168,57 +172,65 @@ def save_points(points, out_dir):
         g.getTree().saveAsSWC(str(out_dir / (patch_name + ".swc")))
 
 
-def mean_shift_helper(point, img, radius=4, n_iter=1, do_dog=False, sigma1=1, sigma2=1.6, voxel_size=None):
-    Views = imglib2.Views
-
-    interval = chunk_center([point.x, point.y, point.z], [64, 64, 64])
-    if do_dog:
-        block = dog(Views.offsetInterval(img, interval), sigma1, sigma2, voxel_size, 1)
-        # Dark regions correspond to blobs, need to invert for mean shift
-        # FIXME: This results in deadlock when run from multiple Python threads???
-        block = invert(block)
-        block = Views.translate(block, interval.minAsLongArray())
-    else:
-        block = Views.interval(img, interval)
-
-    mean_shift_point(point, interploate(block), radius, n_iter)
+def mean_shift_helper(point, img, radius=4, n_iter=1, do_log=False, log_sigma=0.6, voxel_size=None):
+    i = chunk_center([point.z, point.y, point.x], [64, 64, 64])
+    block = img[i.min(0):i.max(0), i.min(1):i.max(1), i.min(2):i.max(2)].compute()
+    if do_log:
+        sigmas = log_sigma / np.array(voxel_size)
+        block = gaussian_laplace(block.astype(np.float64), sigmas, output=np.float64)
+        block = rescale_intensity(block, out_range=np.uint16)
+        # Make dark blobs bright
+        block = skimage.util.invert(block)
+    mean_shift_point(point, block, radius, n_iter, interval=i)
 
 
 def mean_shift_points(
-        points, img, radius=4, n_iter=1, n_threads=1, do_dog=False, sigma1=0.6, sigma2=0.96,
-        voxel_size=None
+        points, img, radius=4, n_iter=1, n_threads=1, do_log=False, sigma=0.6, voxel_size=None
 ):
-    print(n_threads)
     with ThreadPoolExecutor(max_workers=n_threads) as executor:
         futures = []
         for p in points:
-            fut = executor.submit(mean_shift_helper, p, img, radius, n_iter, do_dog, sigma1, sigma2, voxel_size)
+            fut = executor.submit(mean_shift_helper, p, img, radius, n_iter, do_log, sigma, voxel_size)
             futures.append(fut)
         for fut in futures:
             try:
                 fut.result()
             except Exception as e:
-                print(e)
+                logging.error("Exception during mean-shift: ", e)
 
 
 def main():
     scyjava.start_jvm()
 
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
 
     args = parse_args()
 
     transform = WorldToVoxel(args.transform)
-    voxel_size = transform.scale
-    print(f"Voxel size: {voxel_size}")
+    voxel_size = np.flip(transform.scale)
+    logging.info(f"Voxel size: {voxel_size}")
 
     output = Path(args.output)
 
-    block_size = list(ast.literal_eval(args.block_size))
+    block_size = list(reversed(ast.literal_eval(args.block_size)))
     logging.info(f"Using block size: {block_size}")
 
-    reader = ImgReaderFactory.create(args.image)
-    img = get_hyperslice(reader.load(args.image, key=args.dataset), ndim=3)
+    try:
+        z = zarr.open(args.image, "r")
+    except PathNotFoundError:
+        try:
+            z = zarr.open(store=zarr.N5FSStore(args.image), mode="r")
+        except Exception as e:
+            logging.error(
+                f"Could not open {args.image} as either n5 or zarr. Error:\n{e}"
+            )
+            return
+
+    ds = z[args.dataset]
+    img = da.from_array(ds)
+    # FIXME deal with arbitrary dimensional images
+    while img.ndim > 3:
+        img = img[0, ...]
 
     swc_dir = Path(args.swcs)
 
@@ -261,7 +273,7 @@ def main():
                 radius=args.mean_shift_radius,
                 n_iter=args.mean_shift_iter,
                 n_threads=args.threads,
-                do_dog=args.dog,
+                do_log=args.laplacian,
                 voxel_size=voxel_size
             )
             logging.info("Mean shift done.")
