@@ -52,27 +52,29 @@ def mean_shift_point(swc_point, img, radius, n_iter=10, interval=None):
 
         # get locations corresponding to the sphere centered at z,y,x
         r = (gx - x) ** 2 + (gy - y) ** 2 + (gz - z) ** 2
-        s_idx = np.argwhere(r <= rr)
+        s_idx = np.nonzero(r <= rr)
 
         # get the intensity values
-        vals = img[s_idx[:, 0], s_idx[:, 1], s_idx[:, 2]]
+        vals = img[s_idx]
 
         # compute weights
         w = vals - vals.mean()
 
         # get positive weights and their indices
-        w_idx = np.argwhere(w > 0)
-        if w_idx.size == 0:
+        w_idx = np.nonzero(w > 0)
+        if w_idx[0].size == 0:
             return
-        w_pos = w[w_idx[:, 0]]
+        w_pos = w[w_idx]
 
         # get indices of positive weights in the sphere
-        inds = s_idx[w_idx].squeeze()
+        z_idx = s_idx[0][w_idx]
+        y_idx = s_idx[1][w_idx]
+        x_idx = s_idx[2][w_idx]
 
         # get coordinates of these points in the original array
-        zs = gz[inds[:, 0], inds[:, 1], inds[:, 2]]
-        ys = gy[inds[:, 0], inds[:, 1], inds[:, 2]]
-        xs = gx[inds[:, 0], inds[:, 1], inds[:, 2]]
+        zs = gz[z_idx, y_idx, x_idx]
+        ys = gy[z_idx, y_idx, x_idx]
+        xs = gx[z_idx, y_idx, x_idx]
 
         # add dummy dim for broadcasting purposes
         w_pos = w_pos[..., np.newaxis]
