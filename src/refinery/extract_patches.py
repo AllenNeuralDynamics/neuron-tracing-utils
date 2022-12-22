@@ -2,6 +2,7 @@ import argparse
 import ast
 import logging
 import os
+import random
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -80,6 +81,18 @@ def parse_args():
         action="store_true",
         help="use Laplacian of Gaussian filter for point refinement"
     )
+    parser.add_argument(
+        "--add-shift",
+        default=True,
+        action="store_true",
+        help="add a random shift to the center location of each patch"
+    )
+    parser.add_argument(
+        "--shift-border",
+        type=int,
+        default=10,
+        help="restrict the random shift to pixels within this border of block size"
+    )
     args = parser.parse_args()
     return args
 
@@ -135,13 +148,26 @@ def parse_args():
 #         optimize_point(p, radius, img, side_lengths, max_value, min_value)
 
 
-def patches_from_points(darray, points, block_size):
+def constrained_random_shift(interval, border):
+    sz = interval.min(0) + border
+    sy = interval.min(1) + border
+    sx = interval.min(2) + border
+    ez = interval.max(0) - border
+    ey = interval.max(1) - border
+    ex = interval.max(2) - border
+    return np.array([random.randint(sz, ez), random.randint(sy, ey), random.randint(sx, ex)])
+
+
+def patches_from_points(darray, points, block_size, add_shift=True, shift_border=10):
     logging.debug(f"Using window size: {block_size}")
     patches = []
     translated_points = []
     for p in points:
         arr = np.array([p.getZ(), p.getY(), p.getX()])
         i = chunk_center(arr, block_size)
+        if add_shift:
+            s = constrained_random_shift(i, shift_border)
+            i = chunk_center(s, block_size)
         origin = np.array(list(i.minAsLongArray()))
         offset = arr - origin
         translated_points.append(snt.SWCPoint(0, 1, offset[2], offset[1], offset[0], 1.0, -1))
@@ -281,7 +307,7 @@ def main():
 
         logging.info("Computing patches")
         patches, offset_points = patches_from_points(
-            img, points, block_size=block_size
+            img, points, block_size=block_size, add_shift=args.add_shift, shift_border=args.shift_border
         )
         logging.info("Saving point coordinates as SWC")
         save_points(points, point_dir / struct / "locations")
