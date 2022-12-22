@@ -115,6 +115,8 @@ def main():
 
     indir = Path(args.input)
     for neuron_dir in indir.iterdir():
+        if not neuron_dir.is_dir():
+            continue
         mip_dir = neuron_dir / "mips"
         mip_dir.mkdir(exist_ok=True)
         swc_dir = neuron_dir / "swcs"
