@@ -151,7 +151,7 @@ def patches_from_points(darray, points, block_size):
 
 
 def save_patch(darray, path):
-    logging.info("Saving patch: ", path)
+    logging.info(f"Saving patch: {path}")
     tifffile.imwrite(path, darray.compute())
 
 
