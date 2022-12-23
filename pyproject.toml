@@ -21,7 +21,8 @@ dependencies = [
     "toml",
     "dask",
     "s3fs",
-    "gcsfs"
+    "gcsfs",
+    "tensorstore"
 ]
 
 [project.optional-dependencies]
