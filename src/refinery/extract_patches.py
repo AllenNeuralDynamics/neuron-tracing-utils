@@ -12,12 +12,12 @@ from pathlib import Path
 import dask.array as da
 import numpy as np
 import scyjava
-import skimage.util
 import tifffile
 import zarr
 from scipy.ndimage import gaussian_laplace
 from skimage.exposure import rescale_intensity
 from zarr.errors import PathNotFoundError
+import tensorstore as ts
 
 from refinery.refine import mean_shift_point
 from refinery.transform import WorldToVoxel
@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument(
         "--image",
         type=str,
-        default="s3://janelia-mouselight-imagery/carveouts/2018-08-01/fluorescence-near-consensus.n5",
+        default=r"https://s3.amazonaws.com/janelia-mouselight-imagery/carveouts/2018-08-01/fluorescence-near-consensus.n5"
     )
     parser.add_argument("--dataset", type=str, default="volume-rechunked")
     parser.add_argument(
@@ -90,7 +90,7 @@ def parse_args():
     parser.add_argument(
         "--shift-border",
         type=int,
-        default=10,
+        default=5,
         help="restrict the random shift to pixels within this border of block size"
     )
     args = parser.parse_args()
@@ -178,7 +178,7 @@ def patches_from_points(darray, points, block_size, add_shift=True, shift_border
 
 def save_patch(darray, path):
     logging.info(f"Saving patch: {path}")
-    tifffile.imwrite(path, darray.compute())
+    tifffile.imwrite(path, darray.read().result())
 
 
 def save_patches(patches, out_dir, n_threads=1):
@@ -201,7 +201,7 @@ def save_points(points, out_dir):
 
 def mean_shift_helper(point, img, radius=4, n_iter=1, do_log=False, log_sigma=1, voxel_size=None):
     i = chunk_center([point.z, point.y, point.x], [128, 128, 128])
-    block = img[i.min(0):i.max(0), i.min(1):i.max(1), i.min(2):i.max(2)].compute()
+    block = img[i.min(0):i.max(0), i.min(1):i.max(1), i.min(2):i.max(2)].read().result()
     if do_log:
         sigmas = log_sigma / np.array(voxel_size)
         block = gaussian_laplace(block.astype(np.float64), sigmas, output=np.float64)
@@ -226,6 +226,15 @@ def mean_shift_points(
                 logging.error(f"Exception during mean-shift: {e}")
 
 
+def _get_driver_string(image_path):
+    drivers = {
+        ".zarr": "zarr",
+        ".n5": "n5"
+    }
+    _, ext = os.path.splitext(image_path)
+    return drivers[ext]
+
+
 def main():
     scyjava.start_jvm()
 
@@ -242,22 +251,25 @@ def main():
     block_size = list(reversed(ast.literal_eval(args.block_size)))
     logging.info(f"Using block size: {block_size}")
 
-    try:
-        z = zarr.open(args.image, "r")
-    except PathNotFoundError:
-        try:
-            z = zarr.open(store=zarr.N5FSStore(args.image), mode="r")
-        except Exception as e:
-            logging.error(
-                f"Could not open {args.image} as either n5 or zarr. Error:\n{e}"
-            )
-            return
+    # TensorStore opens n5 with axis order X,Y,Z, so get
+    # a transposed view to be compatible with util code
+    ds = ts.open({
+        "driver": _get_driver_string(args.image),
+        "kvstore": args.image,
+        "path": args.dataset,
+        "context": {
+            "cache_pool": {
+                "total_bytes_limit": 200_000_000
+            }
+        },
+        "open": True,
+        "recheck_cached_data": "open"
+    }).result().T
 
-    ds = z[args.dataset]
-    img = da.from_array(ds)
     # FIXME deal with arbitrary dimensional images
-    while img.ndim > 3:
-        img = img[0, ...]
+    while ds.ndim > 3:
+        ds = ds[0, ...]
+    print(ds.shape)
 
     swc_dir = Path(args.swcs)
 
@@ -296,7 +308,7 @@ def main():
             logging.info(f"Doing mean shift for {struct}...")
             mean_shift_points(
                 points=points,
-                img=img,
+                img=ds,
                 radius=args.mean_shift_radius,
                 n_iter=args.mean_shift_iter,
                 n_threads=args.threads,
@@ -307,7 +319,7 @@ def main():
 
         logging.info("Computing patches")
         patches, offset_points = patches_from_points(
-            img, points, block_size=block_size, add_shift=args.add_shift, shift_border=args.shift_border
+            ds, points, block_size=block_size, add_shift=args.add_shift, shift_border=args.shift_border
         )
         logging.info("Saving point coordinates as SWC")
         save_points(points, point_dir / struct / "locations")
