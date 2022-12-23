@@ -82,6 +82,12 @@ def parse_args():
         help="use Laplacian of Gaussian filter for point refinement"
     )
     parser.add_argument(
+        "--sigma",
+        type=float,
+        default=3,
+        help="sigma for LoG filter"
+    )
+    parser.add_argument(
         "--add-shift",
         default=True,
         action="store_true",
@@ -317,6 +323,7 @@ def main():
                 n_iter=args.mean_shift_iter,
                 n_threads=args.threads,
                 do_log=args.laplacian,
+                sigma=args.sigma,
                 voxel_size=voxel_size
             )
             logging.info("Mean shift done.")
