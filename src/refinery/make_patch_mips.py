@@ -12,12 +12,14 @@ from skimage.color import gray2rgb
 from skimage.draw import circle_perimeter
 from skimage.exposure import rescale_intensity
 from skimage.io import imsave
+from skimage.util import montage
 from tifffile import tifffile
 
 from refinery.util.java import snt
 
 
 def write_circle_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
+    mips = []
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
@@ -41,14 +43,17 @@ def write_circle_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
                 except IndexError as e:
                     print(e)
                     continue
-            out = os.path.join(out_mip_dir, im_name + "_mip.png")
-            Path(out).parent.mkdir(exist_ok=True, parents=True)
-            imsave(out, mip_rgb)
+            mips.append(mip_rgb)
+        mt = montage(mips, channel_axis=3)
+        out = os.path.join(out_mip_dir, "montage_mip.png")
+        Path(out).parent.mkdir(exist_ok=True, parents=True)
+        imsave(out, mt)
 
 
 def write_label_mips(label_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0, alpha=0.5):
     red_multiplier = np.array([1, 0, 0], dtype=np.uint8)
     name_pattern = re.compile(r"patch-(\d+)")
+    mips = []
     for root, dirs, files in os.walk(label_dir):
         mask_paths = [Path(os.path.join(root, f)) for f in files]
         for mask_path in mask_paths:
@@ -68,9 +73,11 @@ def write_label_mips(label_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0, alp
             raw_im = Image.fromarray(raw).convert("RGBA")
             label_im = Image.fromarray(labels).convert("RGBA")
             blended = Image.blend(raw_im, label_im, alpha)
-            out = out_mip_dir / (name + ".png")
-            out.parent.mkdir(parents=True, exist_ok=True)
-            blended.save(out)
+            mips.append(np.array(blended))
+    mt = montage(mips, channel_axis=3)
+    out = out_mip_dir / "montage_mip.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    imsave(out, mt)
 
 
 def main():
