@@ -186,6 +186,7 @@ def fill_patches(
         cost_str,
         threshold,
         cal,
+        structure,
         export_gray=False,
         export_binary=True
 ):
@@ -203,6 +204,8 @@ def fill_patches(
         out_mask_dir.mkdir(exist_ok=True)
         for struct_dir in swc_dir.iterdir():
             struct = struct_dir.name
+            if structure != "all" and struct != structure:
+                continue
             aligned_swcs = struct_dir / "patch-aligned"
             if not aligned_swcs.is_dir():
                 raise Exception(f"Aligned swc dir does not exist: {aligned_swcs}")
@@ -332,6 +335,11 @@ def main():
         default="patches",
         help="task to run"
     )
+    parser.add_argument(
+        "--structure",
+        choices=["soma", "endpoints", "branches", "all"],
+        default="endpoints"
+    )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -377,7 +385,8 @@ def main():
             Path(args.input),
             args.cost,
             args.threshold,
-            calibration
+            calibration,
+            args.structure
         )
     else:
         raise Exception(f"Invalid task: {args.task}")
