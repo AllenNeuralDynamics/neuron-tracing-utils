@@ -223,7 +223,7 @@ def mean_shift_points(
             try:
                 fut.result()
             except Exception as e:
-                logging.error("Exception during mean-shift: ", e)
+                logging.error(f"Exception during mean-shift: {e}")
 
 
 def main():
