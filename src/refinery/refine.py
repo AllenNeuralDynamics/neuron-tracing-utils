@@ -30,7 +30,7 @@ def mean_shift_point(swc_point, img, radius, n_iter=10, interval=None):
     cz = z
     rr = radius ** 2
 
-    print(f"initial point: {[z, y, x]}")
+    logging.debug(f"initial point: {[z, y, x]}")
 
     if interval is not None:
         gz, gy, gx = np.mgrid[
@@ -96,7 +96,7 @@ def mean_shift_point(swc_point, img, radius, n_iter=10, interval=None):
     swc_point.y = cy
     swc_point.z = cz
 
-    print(f"adjusted: {cz} {cy} {cx}")
+    logging.debug(f"adjusted: {cz} {cy} {cx}")
 
     return displacements
 

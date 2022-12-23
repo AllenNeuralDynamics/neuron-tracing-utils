@@ -93,6 +93,11 @@ def parse_args():
         default=5,
         help="restrict the random shift to pixels within this border of block size"
     )
+    parser.add_argument(
+        "--log-level",
+        type=int,
+        default=logging.INFO
+    )
     args = parser.parse_args()
     return args
 
@@ -177,7 +182,7 @@ def patches_from_points(darray, points, block_size, add_shift=True, shift_border
 
 
 def save_patch(darray, path):
-    logging.info(f"Saving patch: {path}")
+    logging.debug(f"Saving patch: {path}")
     tifffile.imwrite(path, darray.read().result())
 
 
@@ -238,9 +243,9 @@ def _get_driver_string(image_path):
 def main():
     scyjava.start_jvm()
 
-    logging.getLogger().setLevel(logging.INFO)
-
     args = parse_args()
+
+    logging.getLogger().setLevel(args.log_level)
 
     transform = WorldToVoxel(args.transform)
     voxel_size = np.flip(transform.scale)
@@ -273,11 +278,10 @@ def main():
 
     swc_dir = Path(args.swcs)
 
-    for swc in swc_dir.iterdir():
-        if not swc.name.endswith(".swc"):
-            continue
+    swcs = [f for f in swc_dir.iterdir() if f.name.endswith(".swc")]
 
-        logging.info(f"Processing {swc}")
+    for i, swc in enumerate(swcs):
+        logging.info(f"Processing swc {i+1}/{len(swcs)}: {swc}")
 
         patch_dir = output / swc.stem
         patch_dir.mkdir(parents=True, exist_ok=True)
