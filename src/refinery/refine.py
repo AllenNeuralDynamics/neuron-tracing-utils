@@ -23,14 +23,14 @@ class RefineMode(Enum):
 
 def interpolate(img, ival=None):
     if ival is None:
-        z = np.arange(0, img.shape[0], dtype=int)
-        y = np.arange(0, img.shape[1], dtype=int)
-        x = np.arange(0, img.shape[2], dtype=int)
+        z = np.arange(0, img.shape[0], dtype=float)
+        y = np.arange(0, img.shape[1], dtype=float)
+        x = np.arange(0, img.shape[2], dtype=float)
     else:
         # interpolate on the interval that defines the image
-        z = np.arange(ival.min(0), ival.max(0), dtype=int)
-        y = np.arange(ival.min(1), ival.max(1), dtype=int)
-        x = np.arange(ival.min(2), ival.max(2), dtype=int)
+        z = np.arange(ival.min(0), ival.max(0), dtype=float)
+        y = np.arange(ival.min(1), ival.max(1), dtype=float)
+        x = np.arange(ival.min(2), ival.max(2), dtype=float)
     return RegularGridInterpolator((z, y, x), img)
 
 
