@@ -95,8 +95,8 @@ def parse_args():
     )
     parser.add_argument(
         "--shift-border",
-        type=int,
-        default=5,
+        type=str,
+        default="32,32,16",
         help="restrict the random shift to pixels within this border of block size"
     )
     parser.add_argument(
@@ -160,12 +160,12 @@ def parse_args():
 
 
 def constrained_random_shift(interval, border):
-    sz = interval.min(0) + border
-    sy = interval.min(1) + border
-    sx = interval.min(2) + border
-    ez = interval.max(0) - border
-    ey = interval.max(1) - border
-    ex = interval.max(2) - border
+    sz = interval.min(0) + border[0]
+    sy = interval.min(1) + border[1]
+    sx = interval.min(2) + border[2]
+    ez = interval.max(0) - border[0]
+    ey = interval.max(1) - border[1]
+    ex = interval.max(2) - border[2]
     return np.array([random.randint(sz, ez), random.randint(sy, ey), random.randint(sx, ex)])
 
 
@@ -329,8 +329,9 @@ def main():
             logging.info("Mean shift done.")
 
         logging.info("Computing patches")
+        border = list(reversed(ast.literal_eval(args.shift_border)))
         patches, offset_points = patches_from_points(
-            ds, points, block_size=block_size, add_shift=args.add_shift, shift_border=args.shift_border
+            ds, points, block_size=block_size, add_shift=args.add_shift, shift_border=border
         )
         logging.info("Saving point coordinates as SWC")
         save_points(points, point_dir / struct / "locations")
