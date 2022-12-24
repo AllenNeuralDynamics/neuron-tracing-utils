@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import scyjava
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from skimage.color import gray2rgb
 from skimage.draw import circle_perimeter
 from skimage.exposure import rescale_intensity
@@ -29,21 +29,27 @@ def write_circle_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
             im_path = os.path.join(im_dir, im_name + ".tif")
             img = tifffile.imread(im_path)
             img_rescale = rescale_intensity(
-                img, in_range=(vmin, vmax)
+                img, in_range=(vmin, vmax), out_range=np.uint8
             )
-            mip_rgb = gray2rgb(np.max(img_rescale, axis=0))
+            mip_rgb = gray2rgb(np.max(img_rescale, axis=0)).astype(np.uint8)
             graph = snt.Tree(f).getGraph()
             for v in graph.vertexSet():
                 # draw circle
                 rr, cc = circle_perimeter(
-                    int(round(v.getY())), int(round(v.getX())), 4
+                    int(round(v.getY())), int(round(v.getX())), 3
                 )
                 try:
-                    mip_rgb[rr, cc, 1] = 255
+                    mip_rgb[rr, cc, 0] = 255
+                    mip_rgb[rr, cc, 1] = 0
+                    mip_rgb[rr, cc, 2] = 0
                 except IndexError as e:
                     print(e)
                     continue
-            mips.append(mip_rgb)
+            img = Image.fromarray(mip_rgb)
+            draw = ImageDraw.Draw(img)
+            font = ImageFont.truetype("DejaVuSans.ttf", 8)
+            draw.text((0, 0),im_name,(255,255,0), font=font)
+            mips.append(np.array(img))
         mt = montage(mips, channel_axis=3)
         out = os.path.join(out_mip_dir, "montage_mip.png")
         Path(out).parent.mkdir(exist_ok=True, parents=True)
@@ -73,6 +79,9 @@ def write_label_mips(label_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0, alp
             raw_im = Image.fromarray(raw).convert("RGBA")
             label_im = Image.fromarray(labels).convert("RGBA")
             blended = Image.blend(raw_im, label_im, alpha)
+            draw = ImageDraw.Draw(blended)
+            font = ImageFont.truetype("DejaVuSans.ttf", 8)
+            draw.text((0, 0),name,(255,255,0), font=font)
             mips.append(np.array(blended))
     mt = montage(mips, channel_axis=3)
     out = out_mip_dir / "montage_mip.png"
@@ -85,35 +94,23 @@ def main():
     parser.add_argument(
         "--input",
         type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\patches-meanshift-dog"
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-meanshift\G-115_consensus",
-        help="directory to output MIPs",
+        default=r"/home/jupyter/2018-08-01/endpoint-patches-all"
     )
     parser.add_argument(
         "--vmin",
         type=float,
-        default=12000.0,
+        default=11500.0,
         help="minimum intensity of the desired display range",
     )
     parser.add_argument(
         "--vmax",
         type=float,
-        default=14000.0,
+        default=15000.0,
         help="maximum intensity of the desired display range",
     )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
-
-    os.makedirs(args.output, exist_ok=True)
-
-    with open(os.path.join(args.output, "args.json"), "w") as f:
-        args.__dict__["script"] = parser.prog
-        json.dump(args.__dict__, f, indent=2)
 
     logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)
