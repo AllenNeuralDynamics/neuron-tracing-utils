@@ -198,9 +198,6 @@ def astar_swcs(
     key=None,
     threads=1,
 ):
-    reader = ImgReaderFactory.create(im_path)
-    view = imgutil.get_hyperslice(reader.load(im_path, key=key))
-
     in_swcs = []
     out_swcs = []
 
@@ -227,8 +224,9 @@ def astar_swcs(
             astar_swc,
             in_swcs,
             out_swcs,
-            itertools.repeat(view, times),
+            itertools.repeat(im_path, times),
             itertools.repeat(calibration, times),
+            itertools.repeat(key, times)
         )
     t1 = time.time()
     logging.info(f"processed {times} swcs in {t1-t0}s")
@@ -303,7 +301,7 @@ def main():
             args.dataset,
             args.threads,
         )
-    elif os.path.isfile(args.image):
+    else:
         astar_swcs(
             args.input,
             args.output,
@@ -312,8 +310,6 @@ def main():
             args.dataset,
             args.threads,
         )
-    else:
-        raise FileNotFoundError(f"{args.image} was not found")
     logging.info("Finished A-star.")
 
 
