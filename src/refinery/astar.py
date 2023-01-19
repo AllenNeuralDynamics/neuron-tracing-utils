@@ -21,7 +21,7 @@ import numpy as np
 def astar_swc(
         in_swc,
         out_swc,
-        im_path,
+        img,
         calibration,
         key=None,
         timeout=60,
@@ -39,8 +39,9 @@ def astar_swc(
 
     print(f"processing {in_swc}")
 
-    reader = ImgReaderFactory.create(im_path)
-    img = imgutil.get_hyperslice(reader.load(im_path, key=key))
+    if isinstance(img, (str, Path)):
+        reader = ImgReaderFactory.create(img)
+        img = imgutil.get_hyperslice(reader.load(img, key=key))
 
     graph = Tree(in_swc).getGraph()
 
@@ -198,6 +199,9 @@ def astar_swcs(
     key=None,
     threads=1,
 ):
+    reader = ImgReaderFactory.create(im_path)
+    img = imgutil.get_hyperslice(reader.load(im_path, key=key))
+
     in_swcs = []
     out_swcs = []
 
@@ -224,7 +228,7 @@ def astar_swcs(
             astar_swc,
             in_swcs,
             out_swcs,
-            itertools.repeat(im_path, times),
+            itertools.repeat(img, times),
             itertools.repeat(calibration, times),
             itertools.repeat(key, times)
         )
