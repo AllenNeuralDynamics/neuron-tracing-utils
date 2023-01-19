@@ -22,7 +22,8 @@ dependencies = [
     "dask",
     "s3fs",
     "gcsfs",
-    "tensorstore"
+    "tensorstore",
+    "jgo@git+https://github.com/scijava/jgo"
 ]
 
 [project.optional-dependencies]
