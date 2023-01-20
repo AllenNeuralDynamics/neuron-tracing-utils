@@ -1,5 +1,4 @@
 import argparse
-import itertools
 import json
 import logging
 import os
@@ -18,7 +17,7 @@ from tqdm import tqdm
 from refinery.util import ioutil
 from refinery.util.chunkutil import chunk_center
 from refinery.util.imgutil import get_hyperslice
-from refinery.util.ioutil import ImgReaderFactory, open_ts, open_n5_zarr_as_ndarray
+from refinery.util.ioutil import ImgReaderFactory, open_ts
 from refinery.util.java import snt
 
 
@@ -63,17 +62,11 @@ def mean_shift_point(
 ):
     if crop_interval:
         if isinstance(im, dask.array.Array):
-            print(type(im))
-            try:
-                im = im[
-                    interval.min(0) : interval.max(0),
-                    interval.min(1) : interval.max(1),
-                    interval.min(2) : interval.max(2),
-                ].compute()
-            except Exception as e:
-                print(e)
-
-
+            im = im[
+                interval.min(0) : interval.max(0),
+                interval.min(1) : interval.max(1),
+                interval.min(2) : interval.max(2),
+            ].compute()
         elif isinstance(im, TensorStore):
             im = im[
                 interval.min(0) : interval.max(0),
@@ -142,14 +135,14 @@ def mean_shift_point(
 
 
 def refine_graph(
-    graph, img, radius, n_iter, n_threads=8, crop_intervals=False
+    graph, img, radius, n_iter, n_threads=8, crop_intervals=False, crop_dims=(64, 64, 64)
 ):
     vertices = [v for v in graph.vertexSet()]
     times = graph.vertexSet().size()
     if crop_intervals:
         ivals = []
         for v in vertices:
-            ivals.append(chunk_center(np.array([v.z, v.y, v.x]), [128, 128, 128]))
+            ivals.append(chunk_center(np.array([v.z, v.y, v.x]), crop_dims))
     else:
         ivals = [None] * times
     with ThreadPoolExecutor(max_workers=n_threads) as executor:
@@ -162,7 +155,7 @@ def refine_graph(
             try:
                 fut.result()
             except Exception as e:
-                print(e)
+                logging.error(e)
 
 
 def fit_tree(tree, img, radius=1):
@@ -279,21 +272,15 @@ def main():
     parser.add_argument(
         "--input",
         type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\repos\exaSpim-training-data\exaSPIM_609281_2022-11-03_13-49-18"
-        r"\whole-brain\swcs-transformed",
         help="directory of .swc files to refine",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default=r"C:\Users\cameron.arshadi\Desktop\repos\exaSpim-training-data\exaSPIM_609281_2022-11-03_13-49-18"
-        r"\whole-brain\swcs-refined",
         help="directory to output refined .swc files",
     )
     parser.add_argument(
         "--image",
-        default=r"https://aind-open-data.s3.amazonaws.com/exaSPIM_609281_2022-11-03_13-49-18_stitched_2022-11-22_12"
-        r"-07-00/fused.zarr/fused.zarr",
         type=str,
         help="image or directory of images associated with the .swc files",
     )
