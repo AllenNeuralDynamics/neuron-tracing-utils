@@ -6,22 +6,16 @@ import random
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-# import dask
-# dask.config.set(scheduler='synchronous')
-
-import dask.array as da
 import numpy as np
 import scyjava
 import tifffile
-import zarr
 from scipy.ndimage import gaussian_laplace
 from skimage.exposure import rescale_intensity
-from zarr.errors import PathNotFoundError
-import tensorstore as ts
 
 from refinery.refine import mean_shift_point
 from refinery.transform import WorldToVoxel
 from refinery.util.chunkutil import chunk_center
+from refinery.util.ioutil import open_ts
 from refinery.util.java import snt
 
 
@@ -237,13 +231,7 @@ def mean_shift_points(
                 logging.error(f"Exception during mean-shift: {e}")
 
 
-def _get_driver_string(image_path):
-    drivers = {
-        ".zarr": "zarr",
-        ".n5": "n5"
-    }
-    _, ext = os.path.splitext(image_path)
-    return drivers[ext]
+
 
 
 def main():
@@ -264,18 +252,7 @@ def main():
 
     # TensorStore opens n5 with axis order X,Y,Z, so get
     # a transposed view to be compatible with util code
-    ds = ts.open({
-        "driver": _get_driver_string(args.image),
-        "kvstore": args.image,
-        "path": args.dataset,
-        "context": {
-            "cache_pool": {
-                "total_bytes_limit": 200_000_000
-            }
-        },
-        "open": True,
-        "recheck_cached_data": "open"
-    }).result().T
+    ds = open_ts(args.image, dataset=args.dataset)
 
     # FIXME deal with arbitrary dimensional images
     while ds.ndim > 3:
