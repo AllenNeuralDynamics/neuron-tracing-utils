@@ -23,7 +23,8 @@ dependencies = [
     "s3fs",
     "gcsfs",
     "tensorstore",
-    "jgo@git+https://github.com/scijava/jgo"
+    "jgo@git+https://github.com/scijava/jgo",
+    "tqdm"
 ]
 
 [project.optional-dependencies]
