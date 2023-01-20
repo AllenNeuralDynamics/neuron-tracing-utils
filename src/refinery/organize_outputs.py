@@ -37,20 +37,9 @@ def copy_blocks(src: Path, dst: Path, voxel_spacing: list):
 
         shutil.copyfile(stack, out_block / "input.tif")
 
-        block_metadata = {}
-
-        # TODO: refactor for block creation script change
-        origin_file = block / "origin_vx.txt"
-        with open(origin_file, 'r') as f:
-            s = f.readline()
-            s = s.replace("[", "")
-            s = s.replace("]", "")
-            o = np.fromstring(s, dtype=int, sep=' ')
-            origin = o.tolist()
-            block_metadata['chunk_origin'] = origin
-
-        block_shape = list(reversed(get_tiff_shape(stack)))
-        block_metadata['chunk_shape'] = block_shape
+        metadata_file = block / "metadata.json"
+        with open(metadata_file, 'r') as f:
+            block_metadata = json.load(f)
 
         block_metadata['voxel_spacing'] = voxel_spacing
 
@@ -76,17 +65,11 @@ def copy_masks(src: Path, dst: Path):
     assert blocks_dir.is_dir()
 
     for p in src.iterdir():
-        if not p.is_dir():
-            continue
-        if "masks" not in p.name:
+        if not p.is_dir() or "masks" not in p.name:
             continue
         args = find_args(p)
         if args is None:
             raise FileNotFoundError(f"Could not find args.json in {p}")
-
-        fill_threshold = float(args['threshold'])
-        fill_cost_function = str(args['cost'])
-
         for f in p.iterdir():
             m = block_pattern.search(f.name)
             if not m:
@@ -94,7 +77,11 @@ def copy_masks(src: Path, dst: Path):
             block_id = m.group(0)
 
             m = mask_pattern.search(f.name)
+            if not m:
+                continue
             mask_type = m.group(0)
+
+            fill_params = json.loads(Path(p / (block_id + "_fill_params.json")).read_text())
 
             block_dir = blocks_dir / block_id
             shutil.copyfile(f, block_dir / mask_type)
@@ -103,8 +90,8 @@ def copy_masks(src: Path, dst: Path):
             with open(metadata_file, 'r') as mf:
                 metadata = json.load(mf)
 
-            metadata['fill_threshold'] = fill_threshold
-            metadata['fill_cost_function'] = fill_cost_function
+            metadata['fill_cost_function'] = fill_params['fill_cost_function']
+            metadata['fill_threshold'] = float(args['threshold'])
             metadata['fill_method'] = "dijkstra"
 
             with open(metadata_file, 'w') as mf:
@@ -180,8 +167,8 @@ def find_pyproject():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("input", type=str)
-    parser.add_argument("output", type=str)
+    parser.add_argument("--input", type=str)
+    parser.add_argument("--output", type=str)
     parser.add_argument("--voxel-size", type=float, nargs='+', default=[1.0, 1.0, 1.0])
     args = parser.parse_args()
 

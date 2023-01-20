@@ -3,6 +3,7 @@ import ast
 import itertools
 import json
 import logging
+import math
 import os
 import re
 import time
@@ -10,8 +11,10 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from pathlib import Path
 
+import imglyb
 import numpy as np
 import scyjava
+import tifffile
 
 from refinery.transform import WorldToVoxel
 from refinery.util.ioutil import ImgReaderFactory
@@ -87,98 +90,165 @@ def get_cost(im, cost_str, z_fudge=DEFAULT_Z_FUDGE):
     Reciprocal = snt.Reciprocal
     OneMinusErf = snt.OneMinusErf
 
+    params = {}
+
     if cost_str == Cost.reciprocal.value:
-        mean = np.mean(im)
-        maxi = np.max(im)
-        cost = Reciprocal(mean, maxi)
+        mean = float(np.mean(im))
+        maximum = float(np.max(im))
+        cost = Reciprocal(mean, maximum)
+        params['fill_cost_function'] = {
+            'name': Cost.reciprocal.value,
+            'args': {
+                "min": mean,
+                "max": maximum
+            }
+        }
     elif cost_str == Cost.one_minus_erf.value:
         mean = np.mean(im)
-        maxi = np.max(im)
-        stddev = np.std(im)
-        cost = OneMinusErf(maxi, mean, stddev)
+        maximum = np.max(im)
+        std = np.std(im)
+        cost = OneMinusErf(maximum, mean, std)
         # reduce z-score by a factor,
         # so we can numerically distinguish more
         # very bright voxels
         cost.setZFudge(z_fudge)
+        params['fill_cost_function'] = {
+            'name': Cost.one_minus_erf.value,
+            "args": {
+                "max": maximum,
+                "average": mean,
+                "standardDeviation": std,
+                "zFudge": z_fudge
+            }
+        }
     else:
         raise ValueError(f"Invalid cost {cost_str}")
 
-    return cost
+    return cost, params
+
+
+def get_cost_global(cost_str, mean, std, cost_min, cost_max, z_fudge=DEFAULT_Z_FUDGE):
+    Reciprocal = snt.Reciprocal
+    OneMinusErf = snt.OneMinusErf
+    params = {}
+
+    if cost_str == Cost.reciprocal.value:
+        minimum = max(0, mean + cost_min * std)
+        maximum = mean + cost_max * std
+        cost = Reciprocal(minimum, maximum)
+        params['fill_cost_function'] = {
+            'name': Cost.reciprocal.value,
+            'args': {
+                "min": minimum,
+                "max": maximum
+            }
+        }
+    elif cost_str == Cost.one_minus_erf.value:
+        maximum = mean + cost_max * std
+        cost = OneMinusErf(
+            maximum,
+            mean,
+            std
+        )
+        # reduce z-score by a factor,
+        # so we can numerically distinguish more
+        # very bright voxels
+        cost.setZFudge(z_fudge)
+        params['fill_cost_function'] = {
+            'name': Cost.one_minus_erf.value,
+            "args": {
+                "max": maximum,
+                "average": mean,
+                "standardDeviation": std,
+                "zFudge": z_fudge
+            }
+        }
+    else:
+        raise ValueError(f"Invalid cost {cost_str}")
+
+    return cost, params
 
 
 def fill_swcs(
         swc_dir,
         im_dir,
-        out_dir,
+        out_mask_dir,
         cost_str,
         threshold,
         cal,
-        export_gray=False,
-        export_labels=True
+        export_labels=True,
+        export_gray=True,
+        as_n5=False,
+        use_global_stats=False,
+        cost_min=-2,
+        cost_max=10
 ):
+    Tree = snt.Tree
+    FillConverter = snt.FillConverter
+    DiskCachedCellImgFactory = imglib2.DiskCachedCellImgFactory
+    UnsignedShortType = imglib2.UnsignedShortType
+    UnsignedByteType = imglib2.UnsignedByteType
 
-    out_dir = Path(out_dir)
+    if use_global_stats:
+        t0 = time.time()
+        mean, std, minimum, maximum = calc_stats(image_dir=im_dir)
+        logging.info(f"Computing stats took {time.time() - t0}s")
+        logging.info(f"Global mean: {mean}, std: {std}, min: {minimum}, max: {maximum}")
 
-    out_mask_dir = out_dir / "masks"
-    out_mask_dir.mkdir(parents=True, exist_ok=True)
+        cost, params = get_cost_global(cost_str, mean, std, cost_min, cost_max)
 
     for root, dirs, files in os.walk(swc_dir):
-        swcs = [Path(os.path.join(root, f)) for f in files if f.endswith(".swc")]
+        swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
             continue
 
-        cost = snt.Reciprocal(11000, 40000)
+        img_name = os.path.basename(root)
+        tiff = os.path.join(im_dir, img_name + ".tif")
+        logging.info(f"Generating masks for {tiff}")
+        try:
+            im = tifffile.imread(tiff)
+        except Exception as e:
+            logging.error(e)
+            continue
 
+        if not use_global_stats:
+            cost, params = get_cost(im, cost_str)
+
+        logging.info(f"cost params: {params}")
+
+        # Wrap ndarray as imglib2 Img, using shared memory
+        # keep the reference in scope until the object is safe to be garbage collected
+        img, ref_store = imglyb.as_cell_img(
+            im, chunk_shape=im.shape, cache=100
+        )
+
+        filler_threads = []
         for f in swcs:
+            tree = Tree(os.path.join(root, f))
+            thread = fill_paths(tree.list(), img, cost, threshold, cal)
+            filler_threads.append(thread)
 
-            print(f"filling {f}")
+        converter = FillConverter(filler_threads)
 
-            name = f.stem
-            im_path = Path(im_dir) / (name + ".tif")
+        if export_gray:
+            mask = DiskCachedCellImgFactory(UnsignedShortType()).create(
+                img.dimensionsAsLongArray()
+            )
+            converter.convert(img, mask)
+            mask_name = img_name + "_Fill_Gray_Mask.n5"
+            save_mask(mask, out_mask_dir, mask_name, as_n5)
 
-            img = ImgReaderFactory.create(im_path).load(str(im_path))
+        if export_labels:
+            mask = DiskCachedCellImgFactory(UnsignedByteType()).create(
+                img.dimensionsAsLongArray()
+            )
+            converter.convertLabels(mask)
+            mask_name = img_name + "_Fill_Label_Mask.n5"
+            save_mask(mask, out_mask_dir, mask_name, as_n5)
 
-            fill_dir = out_dir / "fills"
-            fill_dir.mkdir(parents=True, exist_ok=True)
-
-            fill_path = fill_dir / f"{name}_Fill.txt.gz"
-
-            tree = snt.Tree(str(f))
-            print(tree.getNodes())
-
-            # coords = []
-            # nodes = tree.getNodesAsSWCPoints()
-            # for n in nodes:
-            #     coords.append([n.x, n.y, n.z])
-            # coords = np.array(coords, dtype=int)
-            # bmin, bmax = coords.min(axis=0), coords.max(axis=0)
-            # ival = imglib2.Intervals.createMinMax(bmin[0], bmin[1], bmin[2], bmax[0], bmax[1], bmax[2])
-            # block = imglib2.Views.interval(view, ival)
-
-            filler_stack, converter = fill_tree(tree, img, cost, threshold, cal)
-
-            print("saving fill")
-            save_fill(filler_stack, str(fill_path))
-
-            as_n5 = False
-
-            if export_gray:
-                mask = imglib2.DiskCachedCellImgFactory(imglib2.UnsignedShortType()).create(
-                    img.dimensionsAsLongArray()
-                )
-                converter.convert(img, mask)
-                mask_name = name + "_Fill_Gray_Mask.n5"
-                save_mask(mask, out_mask_dir, mask_name, as_n5)
-
-            if export_labels:
-                mask = imglib2.DiskCachedCellImgFactory(imglib2.UnsignedByteType()).create(
-                    img.dimensionsAsLongArray()
-                )
-                converter.convertLabels(mask)
-                mask_name = name + "_Fill_Label_Mask.n5"
-                save_mask(mask, out_mask_dir, mask_name, as_n5)
-
-            del filler_stack
+        # save cost params
+        with open(os.path.join(out_mask_dir, img_name + "_fill_params.json"), 'w') as f:
+            json.dump(params, f)
 
 
 def fill_patches(
@@ -294,6 +364,37 @@ def save_fill(fill_stack, path):
         f.write(fill_str_bytes)
 
 
+def calc_stats(image_dir):
+    global_min: float = float("inf")
+    global_max: float = float("-inf")
+    global_n: int = 0
+    global_sum: float = 0
+    counts = []
+    variances = []
+    means = []
+    for imfile in Path(image_dir).iterdir():
+        im = tifffile.imread(str(imfile))
+
+        global_sum += im.sum(dtype=np.float64)
+        global_n += im.size
+        global_min = min(global_min, im.min())
+        global_max = max(global_max, im.max())
+
+        counts.append(im.size)
+        variances.append(im.var(dtype=np.float64))
+        means.append(im.mean(dtype=np.float64))
+
+    global_mean: float = global_sum / global_n
+
+    # get the overall standard deviation
+    ssq: float = 0
+    for i in range(len(variances)):
+        ssq += (counts[i] - 1) * variances[i] + (counts[i] - 1) * (means[i] - global_mean) ** 2
+    global_std: float = math.sqrt(ssq / (global_n - 1))
+
+    return global_mean, global_std, global_min, global_max
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -341,6 +442,19 @@ def main():
         default="endpoints"
     )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
+    parser.add_argument(
+        "--use-global-stats", action="store_true", default=False,
+        help="use the statistics of all blocks for the cost function."
+             "Otherwise, the statistics for each block are computed individually."
+    )
+    parser.add_argument(
+        "--cost-min", type=float, default=-2, help="the value at which the cost function is maximized, "
+                                                   "expressed in number of standard deviations from the mean intensity."
+    )
+    parser.add_argument(
+        "--cost-max", type=float, default=10, help="the value at which the cost function is minimized, expressed in"
+                                                   "number of standard deviations from the mean intensity."
+    )
 
     args = parser.parse_args()
 
@@ -355,8 +469,7 @@ def main():
 
     scyjava.start_jvm()
 
-    if not os.path.isdir(args.output):
-        os.makedirs(args.output, exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
 
     calibration = imagej1.Calibration()
     if args.transform is not None:
@@ -367,6 +480,7 @@ def main():
         raise ValueError(
             "Either --transform or --voxel-size must be specified."
         )
+    logging.info(f"Using voxel size: {voxel_size}")
     calibration.pixelWidth = voxel_size[0]
     calibration.pixelHeight = voxel_size[1]
     calibration.pixelDepth = voxel_size[2]
@@ -379,6 +493,12 @@ def main():
             args.cost,
             args.threshold,
             calibration,
+            export_labels=True,
+            export_gray=True,
+            as_n5=args.n5,
+            use_global_stats=args.use_global_stats,
+            cost_min=args.cost_min,
+            cost_max=args.cost_max
         )
     elif args.task == "patches":
         fill_patches(
