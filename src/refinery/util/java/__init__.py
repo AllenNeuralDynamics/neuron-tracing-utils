@@ -23,4 +23,8 @@ _snt_version = get_snt_version()
 _SNT_ENDPOINT = f"org.morphonets:SNT:{_snt_version}"
 sjconf.endpoints.append(_SNT_ENDPOINT)
 
+_mobie_io_version = get_mobie_io_version()
+_MOBIE_IO_ENDPOINT = f"org.embl.mobie:mobie-io:{_mobie_io_version}"
+sjconf.endpoints.append(_MOBIE_IO_ENDPOINT)
+
 sjconf.endpoints.append("net.imagej:imagej-legacy:MANAGED")

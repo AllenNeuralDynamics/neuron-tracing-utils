@@ -50,11 +50,40 @@ class N5Reader:
         return n5.N5Utils.open(reader, key)
 
 
+class OmeZarrReader:
+
+    @staticmethod
+    def _get_reader(path):
+        path = str(path)
+
+        parsed = urlparse(path)
+        bucket = parsed.netloc
+        prefix = parsed.path
+
+        if path.startswith("s3://"):
+            s3 = n5.AmazonS3ClientBuilder.defaultClient()
+            reader = n5.N5S3OmeZarrReader(s3, "us-west-2", bucket, prefix.strip('/'), "/")
+            return reader
+        elif path.startswith("gs://"):
+            # TODO
+            raise NotImplementedError("GCS is not currently supported")
+        else:
+            reader = n5.N5OmeZarrReader(path)
+            return reader
+
+    def load(self, path, **kwargs):
+        key = kwargs.get("key", "volume")
+        reader = self._get_reader(path)
+        print(key)
+        return n5.N5Utils.open(reader, key)
+
+
 class ImgReaderFactory:
     LOADERS = {
         ".tif": TiffReader,
         ".tiff": TiffReader,
-        ".n5": N5Reader
+        ".n5": N5Reader,
+        ".zarr": OmeZarrReader
     }
 
     @staticmethod
