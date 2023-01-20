@@ -1,11 +1,11 @@
 import argparse
 import ast
+import gzip
 import itertools
 import json
 import logging
 import math
 import os
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
@@ -44,7 +44,7 @@ def fill_paths(pathlist, img, cost, threshold, calibration):
 
 
 def fill_path(path, img, cost, threshold, calibration):
-    thread = snt.FillerThread(img, calibration, threshold, 1000, cost)
+    thread = snt.FillerThread(img, calibration, threshold, -1, cost)
     thread.setSourcePaths([path])
     thread.setStopAtThreshold(True)
     thread.run()
@@ -63,9 +63,9 @@ def fill_tree(tree, img, cost, threshold, calibration):
     paths = []
     for b in snt.TreeAnalyzer(tree).getBranches():
         if b.size() > 500:
-            vals = list(myRange(0, b.size()-1, 100))
-            for i in range(0, len(vals)-1):
-                paths.append(b.getSection(vals[i], vals[i+1]))
+            vals = list(myRange(0, b.size() - 1, 100))
+            for i in range(0, len(vals) - 1):
+                paths.append(b.getSection(vals[i], vals[i + 1]))
         else:
             paths.append(b)
     times = len(paths)
@@ -347,8 +347,6 @@ def save_n5(filepath, img, dataset="volume", block_size=None):
 
 
 def save_fill(fill_stack, path):
-    import gzip
-
     Path(path).parent.mkdir(parents=True, exist_ok=True)
 
     lines = []
@@ -399,7 +397,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--input", type=str, help="directory of .swc files to fill",
-        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\patches-meanshift"
+        default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-all"
     )
     parser.add_argument(
         "--output", type=str, help="directory to output mask volumes",
@@ -414,7 +412,7 @@ def main():
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.06,
+        default=0.02,
         help="distance threshold for fill algorithm",
     )
     parser.add_argument(
