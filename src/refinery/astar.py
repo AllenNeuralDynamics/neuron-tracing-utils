@@ -106,12 +106,11 @@ def astar_swc(
         # note the Path result is in world coordinates
         path = search.getResult()
         if path is None:
-            print(
-                "Search failed for {}: points {} and {}, aborting".format(
+            logging.error(
+                "Search failed for {}: points {} and {}".format(
                     in_swc, str(source), str(target)
                 )
             )
-            return
 
         path_arr = sntutil.path_to_ndarray(path)
         # convert back to voxel coords
