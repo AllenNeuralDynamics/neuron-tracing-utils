@@ -4,9 +4,13 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import os
+from enum import Enum
 from pathlib import Path
 import time
 import itertools
+
+from jpype import JImplements, JOverride, JArray, JLong
+from tqdm import tqdm
 
 from refinery.util import sntutil, ioutil, imgutil
 from refinery.util.ioutil import ImgReaderFactory
@@ -18,13 +22,35 @@ import scyjava
 import numpy as np
 
 
+class Cost(Enum):
+    reciprocal = "reciprocal"
+    relative_difference = "relative_difference"
+
+
+@JImplements("sc.fiji.snt.tracing.cost.Cost", deferred=True)
+class RelativeDifference:
+
+    def __init__(self, value_at_start):
+        self.value_at_start = value_at_start
+
+    @JOverride
+    def costMovingTo(self, new_value):
+        # TODO: Verify whether a cost of 0 would cause issues
+        return 1.0 + (abs(new_value - self.value_at_start) / (new_value + self.value_at_start))
+
+    @JOverride
+    def minStepCost(self):
+        return 1.0
+
+
 def astar_swc(
-        in_swc,
-        out_swc,
+        in_swc: str,
+        out_swc: str,
         img,
         calibration,
-        key=None,
-        timeout=60,
+        cost: str,
+        key: str = None,
+        timeout: int = 60,  # s
 ):
     # declare Java classes we will use
     Euclidean = snt.Euclidean
@@ -42,6 +68,8 @@ def astar_swc(
     if isinstance(img, (str, Path)):
         reader = ImgReaderFactory.create(img)
         img = imgutil.get_hyperslice(reader.load(img, key=key))
+
+    ra = img.randomAccess()
 
     graph = Tree(in_swc).getGraph()
 
@@ -72,18 +100,27 @@ def astar_swc(
         ty = int(round(target.y))
         tz = int(round(target.z))
 
-        # compute min-max of the subvolume where the start and goal nodes
-        # are origin and corner, respectively, plus padding in each dimension
-        pad_pixels = 20
-        subvolume = ImgUtils.subVolume(img, sx, sy, sz, tx, ty, tz, pad_pixels)
-        iterable = Views.iterable(subvolume)
-        minmax = ComputeMinMax(iterable, DoubleType(), DoubleType())
-        minmax.process()
-
-        # reciprocal of intensity * distance is our cost for moving to a neighboring node
-        cost = Reciprocal(
-            minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
-        )
+        if cost == Cost.reciprocal.value:
+            # compute min-max of the subvolume where the start and goal nodes
+            # are origin and corner, respectively, plus padding in each dimension
+            pad_pixels = 20
+            subvolume = ImgUtils.subVolume(img, sx, sy, sz, tx, ty, tz, pad_pixels)
+            iterable = Views.iterable(subvolume)
+            minmax = ComputeMinMax(iterable, DoubleType(), DoubleType())
+            minmax.process()
+            # reciprocal of intensity * distance is our cost for moving to a neighboring node
+            cost = Reciprocal(
+                minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
+            )
+        elif cost == Cost.relative_difference.value:
+            pos = JArray(JLong, 1)(3)
+            pos[0] = sx
+            pos[1] = sy
+            pos[2] = sz
+            start_val = ra.setPositionAndGet(pos).get()
+            cost = RelativeDifference(start_val)
+        else:
+            raise Exception(f"Unsupported Cost {cost}")
 
         search = BiSearch(
             img,
@@ -143,6 +180,7 @@ def astar_batch(
     out_swc_dir,
     im_dir,
     calibration,
+    cost,
     key=None,
     threads=1,
 ):
@@ -184,6 +222,7 @@ def astar_batch(
             out_swcs,
             im_paths,
             itertools.repeat(calibration, times),
+            itertools.repeat(cost, times),
             itertools.repeat(key, times)
         )
     t1 = time.time()
@@ -195,6 +234,7 @@ def astar_swcs(
     out_swc_dir,
     im_path,
     calibration,
+    cost,
     key=None,
     threads=1,
 ):
@@ -229,6 +269,7 @@ def astar_swcs(
             out_swcs,
             itertools.repeat(img, times),
             itertools.repeat(calibration, times),
+            itertools.repeat(cost, times),
             itertools.repeat(key, times)
         )
     t1 = time.time()
@@ -266,6 +307,11 @@ def main():
         help="number of threads to use for processing",
     )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
+    parser.add_argument(
+        "--cost",
+        type=str,
+        choices=[cost.value for cost in Cost]
+    )
 
     args = parser.parse_args()
 
@@ -295,12 +341,14 @@ def main():
     calibration.pixelDepth = voxel_size[2]
 
     logging.info("Starting A-star...")
+    t0 = time.time()
     if os.path.isdir(args.image):
         astar_batch(
             args.input,
             args.output,
             args.image,
             calibration,
+            args.cost,
             args.dataset,
             args.threads,
         )
@@ -310,10 +358,11 @@ def main():
             args.output,
             args.image,
             calibration,
+            args.cost,
             args.dataset,
             args.threads,
         )
-    logging.info("Finished A-star.")
+    logging.info(f"Finished A-star. Took {time.time() - t0}s")
 
 
 if __name__ == "__main__":
