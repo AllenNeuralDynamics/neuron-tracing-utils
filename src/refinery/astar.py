@@ -148,6 +148,7 @@ def astar_swc(
                     in_swc, str(source), str(target)
                 )
             )
+            continue
 
         path_arr = sntutil.path_to_ndarray(path)
         # convert back to voxel coords
