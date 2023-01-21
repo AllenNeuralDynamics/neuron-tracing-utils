@@ -85,12 +85,23 @@ def astar_swc(
         ]
     )
 
+    dfs = graph.getDepthFirstIterator()
+
     # A* mode
     # Use heuristic = Dijkstra() instead to default to Dijkstra's algorithm (i.e., h(n) = 0)
     heuristic = Euclidean(calibration)
-    for e in edges:
-        source = e.getSource()
-        target = e.getTarget()
+
+    count = 0
+    size = graph.edgeSet().size()
+    while dfs.hasNext():
+        count += 1
+        logging.debug(f"processing edge {count}/{size}")
+
+        target = dfs.next()
+        in_edges = list(graph.incomingEdgesOf(target))
+        if not in_edges:
+            continue
+        source = in_edges[0].getSource()
 
         # these need to be voxel coordinates
         sx = int(round(source.x))
