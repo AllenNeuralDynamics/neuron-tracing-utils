@@ -48,7 +48,7 @@ def astar_swc(
         out_swc: str,
         img,
         calibration,
-        cost: str,
+        cost_str: str,
         key: str = None,
         timeout: int = 60,  # s
 ):
@@ -100,7 +100,7 @@ def astar_swc(
         ty = int(round(target.y))
         tz = int(round(target.z))
 
-        if cost == Cost.reciprocal.value:
+        if cost_str == Cost.reciprocal.value:
             # compute min-max of the subvolume where the start and goal nodes
             # are origin and corner, respectively, plus padding in each dimension
             pad_pixels = 20
@@ -112,7 +112,7 @@ def astar_swc(
             cost = Reciprocal(
                 minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
             )
-        elif cost == Cost.relative_difference.value:
+        elif cost_str == Cost.relative_difference.value:
             pos = JArray(JLong, 1)(3)
             pos[0] = sx
             pos[1] = sy
@@ -120,7 +120,7 @@ def astar_swc(
             start_val = ra.setPositionAndGet(pos).get()
             cost = RelativeDifference(start_val)
         else:
-            raise Exception(f"Unsupported Cost {cost}")
+            raise Exception(f"Unsupported Cost {cost_str}")
 
         search = BiSearch(
             img,
@@ -217,15 +217,14 @@ def astar_batch(
 
     t0 = time.time()
     with ThreadPoolExecutor(threads) as executor:
-        executor.map(
-            astar_swc,
-            in_swcs,
-            out_swcs,
-            im_paths,
-            itertools.repeat(calibration, times),
-            itertools.repeat(cost, times),
-            itertools.repeat(key, times)
-        )
+        futures = []
+        for i in range(len(in_swcs)):
+            futures.append(executor.submit(astar_swc, in_swcs[i], out_swcs[i], im_paths[i], calibration, cost, key))
+        for fut in futures:
+            try:
+                fut.result()
+            except Exception as e:
+                logging.error(e)
     t1 = time.time()
     logging.info(f"processed {times} swcs in {t1-t0}s")
 
@@ -311,7 +310,8 @@ def main():
     parser.add_argument(
         "--cost",
         type=str,
-        choices=[cost.value for cost in Cost]
+        choices=[cost.value for cost in Cost],
+        default=Cost.reciprocal.value
     )
 
     args = parser.parse_args()
