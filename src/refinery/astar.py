@@ -263,15 +263,14 @@ def astar_swcs(
 
     t0 = time.time()
     with ThreadPoolExecutor(threads) as executor:
-        executor.map(
-            astar_swc,
-            in_swcs,
-            out_swcs,
-            itertools.repeat(img, times),
-            itertools.repeat(calibration, times),
-            itertools.repeat(cost, times),
-            itertools.repeat(key, times)
-        )
+        futures = []
+        for i in range(len(in_swcs)):
+            futures.append(executor.submit(astar_swc, in_swcs[i], out_swcs[i], img, calibration, cost, key))
+        for fut in futures:
+            try:
+                fut.result()
+            except Exception as e:
+                logging.error(e)
     t1 = time.time()
     logging.info(f"processed {times} swcs in {t1-t0}s")
 
