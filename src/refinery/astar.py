@@ -73,10 +73,6 @@ def astar_swc(
 
     graph = Tree(in_swc).getGraph()
 
-    # just to avoid a concurrent modification exception
-    # when iterating over the edge set
-    edges = [e for e in graph.edgeSet()]
-
     spacing = np.array(
         [
             calibration.pixelWidth,
@@ -94,14 +90,14 @@ def astar_swc(
     count = 0
     size = graph.edgeSet().size()
     while dfs.hasNext():
-        count += 1
-        logging.debug(f"processing edge {count}/{size}")
-
         target = dfs.next()
         in_edges = list(graph.incomingEdgesOf(target))
         if not in_edges:
             continue
         source = in_edges[0].getSource()
+
+        count += 1
+        logging.debug(f"processing edge {count}/{size}")
 
         # these need to be voxel coordinates
         sx = int(round(source.x))
