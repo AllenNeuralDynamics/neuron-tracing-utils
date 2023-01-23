@@ -84,7 +84,7 @@ class OmeZarrReader:
             elif isinstance(cache, bool) and cache:
                 dataset = n5.N5Utils.openWithDiskCache(reader, key)
             else:
-                raise Exception("Expected type int or bool for cache")
+                dataset = n5.N5Utils.open(reader, key)
         else:
             dataset = n5.N5Utils.open(reader, key)
         return dataset
