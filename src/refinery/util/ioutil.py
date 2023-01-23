@@ -2,12 +2,12 @@ import logging
 import os.path
 from urllib.parse import urlparse
 
+import tensorstore as ts
 import zarr
 from tensorstore import TensorStore
 from zarr.errors import PathNotFoundError
-import tensorstore as ts
 
-from refinery.util.java import imglib2, n5
+from refinery.util.java import imglib2, n5, aws
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,8 +61,11 @@ class OmeZarrReader:
         prefix = parsed.path
 
         if path.startswith("s3://"):
-            s3 = n5.AmazonS3ClientBuilder.defaultClient()
-            reader = n5.N5S3OmeZarrReader(s3, "us-west-2", bucket, prefix.strip('/'), "/")
+            config = aws.ClientConfiguration().withMaxErrorRetry(10).withMaxConnections(32)
+            s3 = aws.AmazonS3ClientBuilder.standard().withRegion(aws.Regions.US_WEST_2).withClientConfiguration(
+                config
+            ).build()
+            reader = n5.N5S3OmeZarrReader(s3, None, bucket, prefix.strip('/'), "/")
             return reader
         elif path.startswith("gs://"):
             # TODO
@@ -74,8 +77,17 @@ class OmeZarrReader:
     def load(self, path, **kwargs):
         key = kwargs.get("key", "volume")
         reader = self._get_reader(path)
-        print(key)
-        return n5.N5Utils.open(reader, key)
+        if "cache" in kwargs:
+            cache = kwargs["cache"]
+            if isinstance(cache, int):
+                dataset = n5.N5Utils.openWithBoundedSoftRefCache(reader, key, cache)
+            elif isinstance(cache, bool) and cache:
+                dataset = n5.N5Utils.openWithDiskCache(reader, key)
+            else:
+                raise Exception("Expected type int or bool for cache")
+        else:
+            dataset = n5.N5Utils.open(reader, key)
+        return dataset
 
 
 class ImgReaderFactory:
