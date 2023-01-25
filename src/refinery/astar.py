@@ -35,7 +35,8 @@ class RelativeDifference:
 
     @JOverride
     def costMovingTo(self, new_value):
-        # TODO: Verify whether a cost of 0 would cause issues
+        if new_value == self.value_at_start:
+            return 1.0
         return 1.0 + (abs(new_value - self.value_at_start) / (new_value + self.value_at_start))
 
     @JOverride
