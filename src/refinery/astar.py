@@ -7,19 +7,17 @@ import os
 from enum import Enum
 from pathlib import Path
 import time
-import itertools
 
+import scyjava
 from jpype import JImplements, JOverride, JArray, JLong
 from tqdm import tqdm
+import numpy as np
 
 from refinery.util import sntutil, ioutil, imgutil
 from refinery.util.ioutil import ImgReaderFactory
 from refinery.util.java import snt
 from refinery.util.java import imglib2, imagej1
 from refinery.transform import WorldToVoxel
-
-import scyjava
-import numpy as np
 
 
 class Cost(Enum):
@@ -44,6 +42,69 @@ class RelativeDifference:
         return 1.0
 
 
+def _astar_edge(edge, img, cost_str, calibration, timeout):
+    # declare Java classes we will use
+    Euclidean = snt.Euclidean
+    Reciprocal = snt.Reciprocal
+    BiSearch = snt.BiSearch
+    SNT = snt.SNT
+    ImgUtils = snt.ImgUtils
+    Views = imglib2.Views
+    DoubleType = imglib2.DoubleType
+    ComputeMinMax = imglib2.ComputeMinMax
+    RectangleShape = imglib2.RectangleShape
+
+    source = edge.getSource()
+    target = edge.getTarget()
+    # these need to be voxel coordinates
+    sx = int(round(source.x))
+    sy = int(round(source.y))
+    sz = int(round(source.z))
+    tx = int(round(target.x))
+    ty = int(round(target.y))
+    tz = int(round(target.z))
+
+    if cost_str == Cost.reciprocal.value:
+        # compute min-max of the subvolume where the start and goal nodes
+        # are origin and corner, respectively, plus padding in each dimension
+        pad_pixels = 20
+        subvolume = ImgUtils.subVolume(img, sx, sy, sz, tx, ty, tz, pad_pixels)
+        iterable = Views.iterable(subvolume)
+        minmax = ComputeMinMax(iterable, DoubleType(), DoubleType())
+        minmax.process()
+        # reciprocal of intensity * distance is our cost for moving to a neighboring node
+        cost = Reciprocal(
+            minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
+        )
+    elif cost_str == Cost.relative_difference.value:
+        pos = JArray(JLong, 1)(3)
+        pos[0] = sx
+        pos[1] = sy
+        pos[2] = sz
+        shape = RectangleShape(1, False)
+        nhood_ra = shape.neighborhoodsRandomAccessible(img).randomAccess()
+        nhood = nhood_ra.setPositionAndGet(pos)
+        start_val = float("-inf")
+        for val in nhood:
+            start_val = max(start_val, val.get())
+        cost = RelativeDifference(start_val)
+    else:
+        raise Exception(f"Unsupported Cost {cost_str}")
+
+    # A* mode
+    # Use heuristic = Dijkstra() instead to default to Dijkstra's algorithm (i.e., h(n) = 0)
+    heuristic = Euclidean(calibration)
+
+    search = BiSearch(
+        img, calibration, sx, sy, sz, tx, ty, tz, timeout,  -1, SNT.SearchImageType.MAP, cost, heuristic,
+    )
+
+    search.run()
+
+    # note the Path result is in world coordinates
+    return search.getResult()
+
+
 def astar_swc(
         in_swc: str,
         out_swc: str,
@@ -51,28 +112,16 @@ def astar_swc(
         calibration,
         cost_str: str,
         key: str = None,
-        timeout: int = 60,  # s
+        timeout: int = 600,  # s
+        threads: int = 1
 ):
-    # declare Java classes we will use
-    Euclidean = snt.Euclidean
-    Reciprocal = snt.Reciprocal
-    BiSearch = snt.BiSearch
-    SNT = snt.SNT
-    Tree = snt.Tree
-    ImgUtils = snt.ImgUtils
-    Views = imglib2.Views
-    DoubleType = imglib2.DoubleType
-    ComputeMinMax = imglib2.ComputeMinMax
-
     print(f"processing {in_swc}")
 
     if isinstance(img, (str, Path)):
         reader = ImgReaderFactory.create(img)
         img = imgutil.get_hyperslice(reader.load(img, key=key))
 
-    ra = img.randomAccess()
-
-    graph = Tree(in_swc).getGraph()
+    graph = snt.Tree(in_swc).getGraph()
 
     spacing = np.array(
         [
@@ -82,78 +131,31 @@ def astar_swc(
         ]
     )
 
+    edges = []
     dfs = graph.getDepthFirstIterator()
-
-    # A* mode
-    # Use heuristic = Dijkstra() instead to default to Dijkstra's algorithm (i.e., h(n) = 0)
-    heuristic = Euclidean(calibration)
-
-    count = 0
-    size = graph.edgeSet().size()
     while dfs.hasNext():
-        target = dfs.next()
-        in_edges = list(graph.incomingEdgesOf(target))
-        if not in_edges:
+        n = dfs.next()
+        in_edges = graph.incomingEdgesOf(n)
+        if in_edges.isEmpty():
             continue
-        source = in_edges[0].getSource()
+        edges.append(in_edges.iterator().next())
 
-        count += 1
-        logging.debug(f"processing edge {count}/{size}")
+    # FIXME multithreading is slower than serial
+    # paths = []
+    # with ThreadPoolExecutor(threads) as executor:
+    #     futures = [executor.submit(_astar_edge, edge, img, cost_str, calibration, timeout) for edge in edges]
+    #     for fut in tqdm(futures):
+    #         try:
+    #             paths.append(fut.result())
+    #         except Exception as e:
+    #             logging.error(f"Exception during astar: {e}")
 
-        # these need to be voxel coordinates
-        sx = int(round(source.x))
-        sy = int(round(source.y))
-        sz = int(round(source.z))
-        tx = int(round(target.x))
-        ty = int(round(target.y))
-        tz = int(round(target.z))
-
-        if cost_str == Cost.reciprocal.value:
-            # compute min-max of the subvolume where the start and goal nodes
-            # are origin and corner, respectively, plus padding in each dimension
-            pad_pixels = 20
-            subvolume = ImgUtils.subVolume(img, sx, sy, sz, tx, ty, tz, pad_pixels)
-            iterable = Views.iterable(subvolume)
-            minmax = ComputeMinMax(iterable, DoubleType(), DoubleType())
-            minmax.process()
-            # reciprocal of intensity * distance is our cost for moving to a neighboring node
-            cost = Reciprocal(
-                minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
-            )
-        elif cost_str == Cost.relative_difference.value:
-            pos = JArray(JLong, 1)(3)
-            pos[0] = sx
-            pos[1] = sy
-            pos[2] = sz
-            start_val = ra.setPositionAndGet(pos).get()
-            cost = RelativeDifference(start_val)
-        else:
-            raise Exception(f"Unsupported Cost {cost_str}")
-
-        search = BiSearch(
-            img,
-            calibration,
-            sx,
-            sy,
-            sz,
-            tx,
-            ty,
-            tz,
-            timeout,  # timeout (s)
-            -1,  # debug mode reporting interval (ms)
-            SNT.SearchImageType.MAP,
-            cost,
-            heuristic,
-        )
-
-        search.run()
-
-        # note the Path result is in world coordinates
-        path = search.getResult()
+    for edge in tqdm(edges):
+        path = _astar_edge(edge, img, cost_str, calibration, timeout)
         if path is None:
             logging.error(
                 "Search failed for {}: points {} and {}".format(
-                    in_swc, str(source), str(target)
+                    in_swc, str(edge.getSource()), str(edge.getTarget())
                 )
             )
             continue
@@ -161,12 +163,11 @@ def astar_swc(
         path_arr = sntutil.path_to_ndarray(path)
         # convert back to voxel coords
         path_arr /= spacing
-
         assert len(path_arr) > 1
 
-        graph.removeEdge(source, target)
+        graph.removeEdge(edge)
         tmp = graph.addVertex(path_arr[0][0], path_arr[0][1], path_arr[0][2])
-        graph.addEdge(source, tmp)
+        graph.addEdge(edge.getSource(), tmp)
         prev = tmp
         for i in range(1, len(path_arr)):
             tmp = graph.addVertex(
@@ -174,7 +175,7 @@ def astar_swc(
             )
             graph.addEdge(prev, tmp)
             prev = tmp
-        graph.addEdge(tmp, target)
+        graph.addEdge(tmp, edge.getTarget())
 
     tree = graph.getTree()
     # Set a non-zero radius.
@@ -185,13 +186,13 @@ def astar_swc(
 
 
 def astar_batch(
-    in_swc_dir,
-    out_swc_dir,
-    im_dir,
-    calibration,
-    cost,
-    key=None,
-    threads=1,
+        in_swc_dir,
+        out_swc_dir,
+        im_dir,
+        calibration,
+        cost,
+        key=None,
+        threads=1,
 ):
     im_fmt = ioutil.get_file_format(im_dir)
 
@@ -234,17 +235,17 @@ def astar_batch(
             except Exception as e:
                 logging.error(e)
     t1 = time.time()
-    logging.info(f"processed {times} swcs in {t1-t0}s")
+    logging.info(f"processed {times} swcs in {t1 - t0}s")
 
 
 def astar_swcs(
-    in_swc_dir,
-    out_swc_dir,
-    im_path,
-    calibration,
-    cost,
-    key=None,
-    threads=1,
+        in_swc_dir,
+        out_swc_dir,
+        im_path,
+        calibration,
+        cost,
+        key=None,
+        threads=1,
 ):
     reader = ImgReaderFactory.create(im_path)
     img = imgutil.get_hyperslice(reader.load(im_path, key=key))
@@ -270,17 +271,10 @@ def astar_swcs(
     times = len(in_swcs)
 
     t0 = time.time()
-    with ThreadPoolExecutor(threads) as executor:
-        futures = []
-        for i in range(len(in_swcs)):
-            futures.append(executor.submit(astar_swc, in_swcs[i], out_swcs[i], img, calibration, cost, key))
-        for fut in futures:
-            try:
-                fut.result()
-            except Exception as e:
-                logging.error(e)
+    for i in range(len(in_swcs)):
+        astar_swc(in_swcs[i], out_swcs[i], img, calibration, cost, key, threads=threads)
     t1 = time.time()
-    logging.info(f"processed {times} swcs in {t1-t0}s")
+    logging.info(f"processed {times} swcs in {t1 - t0}s")
 
 
 def main():
@@ -323,6 +317,8 @@ def main():
 
     args = parser.parse_args()
 
+    scyjava.start_jvm()
+
     os.makedirs(args.output, exist_ok=True)
 
     with open(os.path.join(args.output, "args.json"), "w") as f:
@@ -331,8 +327,6 @@ def main():
 
     logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)
-
-    scyjava.start_jvm()
 
     calibration = imagej1.Calibration()
     if args.transform is not None:

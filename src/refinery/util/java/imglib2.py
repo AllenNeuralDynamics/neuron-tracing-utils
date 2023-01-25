@@ -18,6 +18,8 @@ def _java_setup():
     HyperSphere = scyjava.jimport(
         "net.imglib2.algorithm.region.hypersphere.HyperSphere"
     )
+    global RectangleShape
+    RectangleShape = scyjava.jimport("net.imglib2.algorithm.neighborhood.RectangleShape")
     global Intervals
     Intervals = scyjava.jimport("net.imglib2.util.Intervals")
     global ArrayImgFactory
