@@ -61,7 +61,7 @@ class OmeZarrReader:
         prefix = parsed.path
 
         if path.startswith("s3://"):
-            config = aws.ClientConfiguration().withMaxErrorRetry(10).withMaxConnections(32)
+            config = aws.ClientConfiguration().withMaxErrorRetry(10).withMaxConnections(100)
             s3 = aws.AmazonS3ClientBuilder.standard().withRegion(aws.Regions.US_WEST_2).withClientConfiguration(
                 config
             ).build()
