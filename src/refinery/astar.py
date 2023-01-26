@@ -42,7 +42,7 @@ class RelativeDifference:
         return 1.0
 
 
-def _astar_edge(edge, img, cost_str, calibration, timeout):
+def _astar_edge(edge, img, cost_str, voxel_size, timeout):
     # declare Java classes we will use
     Euclidean = snt.Euclidean
     Reciprocal = snt.Reciprocal
@@ -53,6 +53,7 @@ def _astar_edge(edge, img, cost_str, calibration, timeout):
     DoubleType = imglib2.DoubleType
     ComputeMinMax = imglib2.ComputeMinMax
     RectangleShape = imglib2.RectangleShape
+    Calibration = imagej1.Calibration
 
     source = edge.getSource()
     target = edge.getTarget()
@@ -91,6 +92,12 @@ def _astar_edge(edge, img, cost_str, calibration, timeout):
     else:
         raise Exception(f"Unsupported Cost {cost_str}")
 
+
+    calibration = Calibration()
+    calibration.pixelWidth = voxel_size[0]
+    calibration.pixelHeight = voxel_size[1]
+    calibration.pixelDepth = voxel_size[2]
+
     # A* mode
     # Use heuristic = Dijkstra() instead to default to Dijkstra's algorithm (i.e., h(n) = 0)
     heuristic = Euclidean(calibration)
@@ -109,7 +116,7 @@ def astar_swc(
         in_swc: str,
         out_swc: str,
         img,
-        calibration,
+        voxel_size,
         cost_str: str,
         key: str = None,
         timeout: int = 600,  # s
@@ -123,13 +130,7 @@ def astar_swc(
 
     graph = snt.Tree(in_swc).getGraph()
 
-    spacing = np.array(
-        [
-            calibration.pixelWidth,
-            calibration.pixelHeight,
-            calibration.pixelDepth,
-        ]
-    )
+    voxel_size = np.array(voxel_size)
 
     edges = []
     dfs = graph.getDepthFirstIterator()
@@ -151,7 +152,7 @@ def astar_swc(
     #             logging.error(f"Exception during astar: {e}")
 
     for edge in tqdm(edges):
-        path = _astar_edge(edge, img, cost_str, calibration, timeout)
+        path = _astar_edge(edge, img, cost_str, voxel_size, timeout)
         if path is None:
             logging.error(
                 "Search failed for {}: points {} and {}".format(
@@ -162,7 +163,7 @@ def astar_swc(
 
         path_arr = sntutil.path_to_ndarray(path)
         # convert back to voxel coords
-        path_arr /= spacing
+        path_arr /= voxel_size
         assert len(path_arr) > 1
 
         graph.removeEdge(edge)
@@ -242,13 +243,17 @@ def astar_swcs(
         in_swc_dir,
         out_swc_dir,
         im_path,
-        calibration,
+        voxel_size,
         cost,
         key=None,
         threads=1,
+        filter=None,
+        scales=None
 ):
     reader = ImgReaderFactory.create(im_path)
     img = imgutil.get_hyperslice(reader.load(im_path, key=key))
+    if filter is not None:
+        img = imgutil.filter(img, scales, voxel_size, filter, lazy=True, threads=threads)
 
     in_swcs = []
     out_swcs = []
@@ -272,7 +277,7 @@ def astar_swcs(
 
     t0 = time.time()
     for i in range(len(in_swcs)):
-        astar_swc(in_swcs[i], out_swcs[i], img, calibration, cost, key, threads=threads)
+        astar_swc(in_swcs[i], out_swcs[i], img, voxel_size, cost, key, threads=threads)
     t1 = time.time()
     logging.info(f"processed {times} swcs in {t1 - t0}s")
 
@@ -313,6 +318,24 @@ def main():
         type=str,
         choices=[cost.value for cost in Cost],
         default=Cost.reciprocal.value
+    )
+    parser.add_argument(
+        "--filter",
+        type=str,
+        choices=["frangi", "tubeness"],
+        default=None,
+        help="Filter to lazily apply to accessed regions of the volume"
+    )
+    parser.add_argument(
+        "--scales",
+        type=float,
+        nargs="+",
+        help="A sequence of scales to integrate the filter response over. "
+             "A scale corresponds to the standard deviation of the "
+             "Gaussian kernel used to smooth the image prior to computing the Hessian."
+             "Each scale should roughly correspond to the radius of structures you want "
+             "to enhance, in physical units.",
+        default=None
     )
 
     args = parser.parse_args()
@@ -359,10 +382,12 @@ def main():
             args.input,
             args.output,
             args.image,
-            calibration,
+            voxel_size,
             args.cost,
             args.dataset,
             args.threads,
+            args.filter,
+            args.scales,
         )
     logging.info(f"Finished A-star. Took {time.time() - t0}s")
 

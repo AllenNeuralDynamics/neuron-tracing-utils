@@ -26,6 +26,8 @@ def _java_setup():
     ArrayImgFactory = scyjava.jimport("net.imglib2.img.array.ArrayImgFactory")
     global ArrayImgs
     ArrayImgs = scyjava.jimport("net.imglib2.img.array.ArrayImgs")
+    global CellImgFactory
+    CellImgFactory = scyjava.jimport("net.imglib2.img.cell.CellImgFactory")
     global Views
     Views = scyjava.jimport("net.imglib2.view.Views")
     global ComputeMinMax

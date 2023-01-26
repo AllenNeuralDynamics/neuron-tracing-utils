@@ -44,6 +44,12 @@ def _java_setup():
     TreeAnalyzer = scyjava.jimport("sc.fiji.snt.analysis.TreeAnalyzer")
     global PathFitter
     PathFitter = scyjava.jimport("sc.fiji.snt.PathFitter")
+    global Lazy
+    Lazy = scyjava.jimport("sc.fiji.snt.filter.Lazy")
+    global Tubeness
+    Tubeness = scyjava.jimport("sc.fiji.snt.filter.Tubeness")
+    global Frangi
+    Frangi = scyjava.jimport("sc.fiji.snt.filter.Frangi")
 
 
 scyjava.when_jvm_starts(_java_setup)
