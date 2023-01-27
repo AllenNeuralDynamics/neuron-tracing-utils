@@ -34,7 +34,10 @@ class N5Reader:
         prefix = parsed.path
 
         if path.startswith("s3://"):
-            s3 = n5.AmazonS3ClientBuilder.defaultClient()
+            config = aws.ClientConfiguration().withMaxErrorRetry(10).withMaxConnections(100)
+            s3 = aws.AmazonS3ClientBuilder.standard().withClientConfiguration(
+                config
+            ).build()
             reader = n5.N5AmazonS3Reader(s3, bucket, prefix)
             return reader
         elif path.startswith("gs://"):
@@ -62,7 +65,7 @@ class OmeZarrReader:
 
         if path.startswith("s3://"):
             config = aws.ClientConfiguration().withMaxErrorRetry(10).withMaxConnections(100)
-            s3 = aws.AmazonS3ClientBuilder.standard().withRegion(aws.Regions.US_WEST_2).withClientConfiguration(
+            s3 = aws.AmazonS3ClientBuilder.standard().withClientConfiguration(
                 config
             ).build()
             reader = n5.N5S3OmeZarrReader(s3, None, bucket, prefix.strip('/'), "/")
