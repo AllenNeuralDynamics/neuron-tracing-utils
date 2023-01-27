@@ -90,16 +90,20 @@ class _AstarCallable(object):
             )
         elif self.cost_str == Cost.relative_difference.value:
             pos = JArray(JLong, 1)(3)
+
             pos[0] = sx
             pos[1] = sy
             pos[2] = sz
-            shape = RectangleShape(1, False)
-            nhood_ra = shape.neighborhoodsRandomAccessible(self.img).randomAccess()
-            nhood = nhood_ra.setPositionAndGet(pos)
-            start_val = float("-inf")
-            for val in nhood:
-                start_val = max(start_val, val.get())
-            cost = RelativeDifference(start_val)
+            start_val = _get_max_neighbor(pos, self.img)
+
+            pos[0] = tx
+            pos[1] = ty
+            pos[2] = tz
+            end_val = _get_max_neighbor(pos, self.img)
+
+            target_val = (start_val + end_val) / 2
+
+            cost = RelativeDifference(target_val)
         else:
             raise Exception(f"Unsupported Cost {self.cost_str}")
 
@@ -121,6 +125,26 @@ class _AstarCallable(object):
 
         # note the Path result is in world coordinates
         return search.getResult()
+
+
+def _get_max_neighbor(pos, img, radius=1) -> float:
+    """
+    Args:
+        pos (JArray): the 3-element position array
+        img (RandomAccessibleInterval): the source image
+        radius (int): shape radius
+
+    Returns:
+        the maximum value in the neighborhood
+    """
+    DiamondShape = imglib2.DiamondShape
+
+    nhood_ra = DiamondShape(radius).neighborhoodsRandomAccessible(img).randomAccess()
+    nhood = nhood_ra.setPositionAndGet(pos)
+    maximum = float("-inf")
+    for val in nhood:
+        maximum = max(maximum, float(val.get()))
+    return maximum
 
 
 def astar_swc(
