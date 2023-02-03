@@ -17,7 +17,7 @@ from tqdm import tqdm
 from refinery.util import ioutil
 from refinery.util.chunkutil import chunk_center
 from refinery.util.imgutil import get_hyperslice
-from refinery.util.ioutil import ImgReaderFactory, open_ts
+from refinery.util.ioutil import ImgReaderFactory, open_ts, is_n5_zarr
 from refinery.util.java import snt
 
 
@@ -158,14 +158,62 @@ def refine_graph(
                 logging.error(e)
 
 
-def fit_tree(tree, img, radius=1):
+def fit_path(path, img, radius):
     PathFitter = snt.PathFitter
-    for path in tree.list():
-        fitter = PathFitter(img, path)
-        fitter.setScope(PathFitter.RADII_AND_MIDPOINTS)
-        fitter.setReplaceNodes(True)
-        fitter.setMaxRadius(radius)
-        fitter.call()
+    fitter = PathFitter(img, path)
+    fitter.setScope(PathFitter.RADII_AND_MIDPOINTS)
+    fitter.setReplaceNodes(False)
+    fitter.setMaxRadius(radius)
+    return fitter.call()
+
+
+def fit_tree(tree, img, radius=1, threads=1):
+    paths = [p for p in tree.list()]
+    fitted = []
+    with ThreadPoolExecutor(threads) as executor:
+        futures = [executor.submit(fit_path, path, img, radius) for path in paths]
+        for i, fut in enumerate(tqdm(futures)):
+            try:
+                fitted.append(fut.result())
+            except Exception as e:
+                logging.error(f"Error fitting path {paths[i].getName()}: {e}")
+
+    # PathFitter is not thread safe, so need to rebuild the connections manually
+    for path, fit in zip(paths, fitted):
+        tree.add(fit)
+        # Get the parent of the input path, if any
+        start_joins = path.getStartJoins()
+        if start_joins is not None:
+            # Get the point of connection on the parent
+            start_joins_point = path.getStartJoinsPoint()
+            # Now unlink the input path from parent path.
+            # This clears the startJoins and startJoinsPoint fields.
+            path.unsetStartJoin()
+            # Replace with the resampled version
+            fit.setStartJoin(start_joins, start_joins_point)
+        # Now swap the connections for any children of the input path
+        # Wrap in a Python list to avoid a ConcurrentModificationException
+        children = list(path.getChildren())
+        for child in children:
+            # Get the point of connection on the input path
+            start_joins_point = child.getStartJoinsPoint()
+            # Find the closest point on the resampled version, since
+            # the node coordinates are different
+            closest_idx = fit.indexNearestTo(
+                start_joins_point.getX(),
+                start_joins_point.getY(),
+                start_joins_point.getZ(),
+                float("inf"),  # within this distance
+            )
+            closest_point = fit.getNode(closest_idx)
+            # Now unlink the child from the input path
+            child.unsetStartJoin()
+            # and link it to the resampled version
+            child.setStartJoin(fit, closest_point)
+        # Remove the input path from the tree
+        tree.remove(path)
+
+    return tree
 
 
 def refine_swcs_batch(
@@ -261,8 +309,8 @@ def refine_swcs(
             elif mode == RefineMode.fit.value:
                 reader = ImgReaderFactory.create(im_path)
                 img = get_hyperslice(reader.load(im_path, key=key), ndim=3)
-                fit_tree(tree, img, radius=radius)
-                tree.saveAsSWC(out_swc)
+                fitted = fit_tree(tree, img, radius=radius, threads=threads)
+                fitted.saveAsSWC(out_swc)
             else:
                 raise ValueError(f"Invalid mode {mode}")
 
@@ -285,18 +333,18 @@ def main():
         help="image or directory of images associated with the .swc files",
     )
     parser.add_argument(
-        "--dataset", type=str, default="0", help="key for the N5/Zarr dataset"
+        "--dataset", type=str, default=None, help="key for the N5/Zarr dataset"
     )
     parser.add_argument(
         "--mode",
         choices=[mode.value for mode in RefineMode],
-        default=RefineMode.mean_shift.value,
+        default=RefineMode.fit.value,
         help="algorithm type",
     )
     parser.add_argument(
         "--radius",
         type=int,
-        default=2,
+        default=10,
         help="search radius for point refinement",
     )
     parser.add_argument("--mean-shift-iter", type=int, default=3)
@@ -317,7 +365,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting refinement...")
-    if os.path.isdir(args.image):
+    if os.path.isdir(args.image) and not is_n5_zarr(args.image):
         refine_swcs_batch(
             args.input,
             args.output,

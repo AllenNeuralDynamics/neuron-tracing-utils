@@ -129,7 +129,10 @@ def open_n5_zarr_as_ndarray(path: str):
     try:
         z = zarr.open(path, "r")
     except PathNotFoundError:
-        z = zarr.open(store=zarr.N5FSStore(path), mode="r")
+        try:
+            z = zarr.open(store=zarr.N5FSStore(path), mode="r")
+        except PathNotFoundError:
+            return None
     return z
 
 
@@ -166,3 +169,8 @@ def _get_driver_string(image_path: str):
     }
     _, ext = os.path.splitext(image_path)
     return drivers[ext]
+
+
+def is_n5_zarr(path):
+    ret = open_n5_zarr_as_ndarray(path)
+    return ret is not None
