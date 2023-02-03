@@ -20,6 +20,8 @@ def _java_setup():
     )
     global RectangleShape
     RectangleShape = scyjava.jimport("net.imglib2.algorithm.neighborhood.RectangleShape")
+    global DiamondShape
+    DiamondShape = scyjava.jimport("net.imglib2.algorithm.neighborhood.DiamondShape")
     global Intervals
     Intervals = scyjava.jimport("net.imglib2.util.Intervals")
     global ArrayImgFactory
