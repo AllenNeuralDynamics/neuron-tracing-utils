@@ -7,7 +7,7 @@ def get_hyperslice(img, ndim=3):
     return img
 
 
-def filter(img, sigmas, spacing, filter="tubeness", lazy=False, cell_dim=64, threads=1):
+def filter(img, sigmas, spacing, filter="tubeness", lazy=False, cell_dim=32, threads=1):
     """
     Filter a RandomAccessibleInterval
 
