@@ -50,7 +50,19 @@ class N5Reader:
     def load(self, path, **kwargs):
         key = kwargs.get("key", "volume")
         reader = self._get_reader(path)
-        return n5.N5Utils.open(reader, key)
+        if "cache" in kwargs:
+            cache = kwargs["cache"]
+            if isinstance(cache, int):
+                dataset = n5.N5Utils.openWithBoundedSoftRefCache(
+                    reader, key, cache
+                )
+            elif isinstance(cache, bool) and cache:
+                dataset = n5.N5Utils.openWithDiskCache(reader, key)
+            else:
+                dataset = n5.N5Utils.open(reader, key)
+        else:
+            dataset = n5.N5Utils.open(reader, key)
+        return dataset
 
 
 class OmeZarrReader:
