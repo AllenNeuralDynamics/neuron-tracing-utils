@@ -38,6 +38,8 @@ def _java_setup():
     BiSearch = scyjava.jimport("sc.fiji.snt.tracing.BiSearch")
     global FillerThread
     FillerThread = scyjava.jimport("sc.fiji.snt.tracing.FillerThread")
+    global Fill
+    Fill = scyjava.jimport("sc.fiji.snt.Fill")
     global FillConverter
     FillConverter = scyjava.jimport("sc.fiji.snt.FillConverter")
     global TreeAnalyzer
@@ -50,6 +52,8 @@ def _java_setup():
     Tubeness = scyjava.jimport("sc.fiji.snt.filter.Tubeness")
     global Frangi
     Frangi = scyjava.jimport("sc.fiji.snt.filter.Frangi")
+    global ProfileProcessor
+    ProfileProcessor = scyjava.jimport("sc.fiji.snt.analysis.ProfileProcessor")
 
 
 scyjava.when_jvm_starts(_java_setup)

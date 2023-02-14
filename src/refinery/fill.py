@@ -1,11 +1,10 @@
 import argparse
 import ast
-import gzip
-import itertools
 import json
 import logging
 import math
 import os
+import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
@@ -15,9 +14,15 @@ import imglyb
 import numpy as np
 import scyjava
 import tifffile
+from tqdm import tqdm
+import zarr
+from numcodecs import blosc
+
+blosc.use_threads = False
 
 from refinery.transform import WorldToVoxel
-from refinery.util.ioutil import ImgReaderFactory
+from refinery.util import imgutil
+from refinery.util.ioutil import ImgReaderFactory, is_n5_zarr, open_n5_zarr_as_ndarray
 from refinery.util.java import imglib2, imagej1
 from refinery.util.java import n5
 from refinery.util.java import snt
@@ -32,13 +37,14 @@ class Cost(Enum):
     one_minus_erf = "one-minus-erf"
 
 
-def fill_paths(pathlist, img, cost, threshold, calibration):
+def fill_paths(path_list, img, cost, threshold, calibration):
     reporting_interval = 1000  # ms
     thread = snt.FillerThread(
         img, calibration, threshold, reporting_interval, cost
     )
-    thread.setSourcePaths(pathlist)
+    thread.setSourcePaths(path_list)
     thread.setStopAtThreshold(True)
+    thread.setStoreExtraNodes(False)
     thread.run()
     return thread
 
@@ -47,129 +53,12 @@ def fill_path(path, img, cost, threshold, calibration):
     thread = snt.FillerThread(img, calibration, threshold, -1, cost)
     thread.setSourcePaths([path])
     thread.setStopAtThreshold(True)
+    thread.setStoreExtraNodes(False)
     thread.run()
     return thread
 
 
-def myRange(start, end, step):
-    i = start
-    while i < end:
-        yield i
-        i += step
-    yield end
-
-
-def fill_tree(tree, img, cost, threshold, calibration):
-    paths = []
-    for b in snt.TreeAnalyzer(tree).getBranches():
-        if b.size() > 500:
-            vals = list(myRange(0, b.size() - 1, 100))
-            for i in range(0, len(vals) - 1):
-                paths.append(b.getSection(vals[i], vals[i + 1]))
-        else:
-            paths.append(b)
-    times = len(paths)
-    t0 = time.time()
-    with ThreadPoolExecutor(16) as executor:
-        fillers = executor.map(
-            fill_path,
-            paths,
-            itertools.repeat(img, times),
-            itertools.repeat(cost, times),
-            itertools.repeat(threshold, times),
-            itertools.repeat(calibration, times),
-        )
-    print(f"Filled {tree.getLabel()} in {time.time() - t0}s")
-    converter = snt.FillConverter(list(fillers))
-    # Merge fills into a single stack.
-    stack = converter.getFillerStack()
-    return stack, converter
-
-
-def get_cost(im, cost_str, z_fudge=DEFAULT_Z_FUDGE):
-    Reciprocal = snt.Reciprocal
-    OneMinusErf = snt.OneMinusErf
-
-    params = {}
-
-    if cost_str == Cost.reciprocal.value:
-        mean = float(np.mean(im))
-        maximum = float(np.max(im))
-        cost = Reciprocal(mean, maximum)
-        params['fill_cost_function'] = {
-            'name': Cost.reciprocal.value,
-            'args': {
-                "min": mean,
-                "max": maximum
-            }
-        }
-    elif cost_str == Cost.one_minus_erf.value:
-        mean = np.mean(im)
-        maximum = np.max(im)
-        std = np.std(im)
-        cost = OneMinusErf(maximum, mean, std)
-        # reduce z-score by a factor,
-        # so we can numerically distinguish more
-        # very bright voxels
-        cost.setZFudge(z_fudge)
-        params['fill_cost_function'] = {
-            'name': Cost.one_minus_erf.value,
-            "args": {
-                "max": maximum,
-                "average": mean,
-                "standardDeviation": std,
-                "zFudge": z_fudge
-            }
-        }
-    else:
-        raise ValueError(f"Invalid cost {cost_str}")
-
-    return cost, params
-
-
-def get_cost_global(cost_str, mean, std, cost_min, cost_max, z_fudge=DEFAULT_Z_FUDGE):
-    Reciprocal = snt.Reciprocal
-    OneMinusErf = snt.OneMinusErf
-    params = {}
-
-    if cost_str == Cost.reciprocal.value:
-        minimum = max(0, mean + cost_min * std)
-        maximum = mean + cost_max * std
-        cost = Reciprocal(minimum, maximum)
-        params['fill_cost_function'] = {
-            'name': Cost.reciprocal.value,
-            'args': {
-                "min": minimum,
-                "max": maximum
-            }
-        }
-    elif cost_str == Cost.one_minus_erf.value:
-        maximum = mean + cost_max * std
-        cost = OneMinusErf(
-            maximum,
-            mean,
-            std
-        )
-        # reduce z-score by a factor,
-        # so we can numerically distinguish more
-        # very bright voxels
-        cost.setZFudge(z_fudge)
-        params['fill_cost_function'] = {
-            'name': Cost.one_minus_erf.value,
-            "args": {
-                "max": maximum,
-                "average": mean,
-                "standardDeviation": std,
-                "zFudge": z_fudge
-            }
-        }
-    else:
-        raise ValueError(f"Invalid cost {cost_str}")
-
-    return cost, params
-
-
-def fill_swcs(
+def fill_image_dir(
         swc_dir,
         im_dir,
         out_mask_dir,
@@ -181,7 +70,7 @@ def fill_swcs(
         as_n5=False,
         use_global_stats=False,
         cost_min=-2,
-        cost_max=10
+        cost_max=10,
 ):
     Tree = snt.Tree
     FillConverter = snt.FillConverter
@@ -193,7 +82,9 @@ def fill_swcs(
         t0 = time.time()
         mean, std, minimum, maximum = calc_stats(image_dir=im_dir)
         logging.info(f"Computing stats took {time.time() - t0}s")
-        logging.info(f"Global mean: {mean}, std: {std}, min: {minimum}, max: {maximum}")
+        logging.info(
+            f"Global mean: {mean}, std: {std}, min: {minimum}, max: {maximum}"
+        )
 
         cost, params = get_cost_global(cost_str, mean, std, cost_min, cost_max)
 
@@ -236,7 +127,7 @@ def fill_swcs(
             )
             converter.convert(img, mask)
             mask_name = img_name + "_Fill_Gray_Mask.n5"
-            save_mask(mask, out_mask_dir, mask_name, as_n5)
+            _save_mask(mask, out_mask_dir, mask_name, as_n5)
 
         if export_labels:
             mask = DiskCachedCellImgFactory(UnsignedByteType()).create(
@@ -244,23 +135,27 @@ def fill_swcs(
             )
             converter.convertLabels(mask)
             mask_name = img_name + "_Fill_Label_Mask.n5"
-            save_mask(mask, out_mask_dir, mask_name, as_n5)
+            _save_mask(mask, out_mask_dir, mask_name, as_n5)
 
         # save cost params
-        with open(os.path.join(out_mask_dir, img_name + "_fill_params.json"), 'w') as f:
+        with open(
+                os.path.join(out_mask_dir, img_name + "_fill_params.json"), "w"
+        ) as f:
             json.dump(params, f)
 
 
-def fill_patches(
+def fill_patch_dir(
         patch_dir: Path,
         cost_str,
         threshold,
         cal,
         structure,
         export_gray=False,
-        export_binary=True
+        export_binary=True,
+        cost_min=None,
+        cost_max=None
 ):
-    cost = snt.Reciprocal(11000, 40000)
+    cost = snt.Reciprocal(cost_min, cost_max)
     for neuron_dir in patch_dir.iterdir():
         if not neuron_dir.is_dir():
             continue
@@ -278,7 +173,9 @@ def fill_patches(
                 continue
             aligned_swcs = struct_dir / "patch-aligned"
             if not aligned_swcs.is_dir():
-                raise Exception(f"Aligned swc dir does not exist: {aligned_swcs}")
+                raise Exception(
+                    f"Aligned swc dir does not exist: {aligned_swcs}"
+                )
             for swc in aligned_swcs.iterdir():
                 if not swc.name.endswith(".swc"):
                     continue
@@ -293,13 +190,13 @@ def fill_patches(
                 struct_mask_dir = out_mask_dir / struct
                 struct_mask_dir.mkdir(exist_ok=True)
                 if export_gray:
-                    mask = imglib2.ArrayImgFactory(imglib2.UnsignedShortType()).create(
-                        img.dimensionsAsLongArray()
-                    )
+                    mask = imglib2.ArrayImgFactory(
+                        imglib2.UnsignedShortType()
+                    ).create(img.dimensionsAsLongArray())
                     converter.convert(img, mask)
                     mask_name = patch_name + "_gray_mask.tif"
                     logging.info(f"Saving gray mask {mask_name}")
-                    save_mask(mask, struct_mask_dir, mask_name, as_n5=False)
+                    _save_mask(mask, struct_mask_dir, mask_name, as_n5=False)
                 if export_binary:
                     mask = imglib2.ArrayImgFactory(imglib2.BitType()).create(
                         img.dimensionsAsLongArray()
@@ -307,17 +204,210 @@ def fill_patches(
                     converter.convertBinary(mask)
                     mask_name = patch_name + "_label_mask.tif"
                     logging.info(f"Saving binary mask {mask_name}")
-                    save_mask(mask, struct_mask_dir, mask_name, as_n5=False)
+                    _save_mask(mask, struct_mask_dir, mask_name, as_n5=False)
 
 
-def save_mask(mask, mask_dir, mask_name, as_n5=False):
+def fill_swc_dir_zarr(
+        swc_dir,
+        im_path,
+        out_fill_dir,
+        threshold,
+        cal,
+        key=None,
+        threads=1,
+        cost_min=None,
+        cost_max=None
+):
+    img = imgutil.get_hyperslice(
+        ImgReaderFactory.create(im_path).load(im_path, key=key), ndim=3
+    )
+    im = open_n5_zarr_as_ndarray(im_path)[key]
+    cost = snt.Reciprocal(cost_min, cost_max)
+    label_ds, gray_ds, gscore_ds = _create_datasets(out_fill_dir, im.shape)
+    label = 1
+    for root, dirs, files in os.walk(swc_dir):
+        swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
+        for f in swcs:
+            tree = snt.Tree(os.path.join(root, f))
+            segments = _chunk_tree(tree)
+            for seg in tqdm(segments):
+                filler = fill_path(seg, img, cost, threshold, cal)
+                _update_fill_stores(im, filler.getFill(), label_ds, gray_ds, gscore_ds, label)
+            label += 1
+
+
+def _create_datasets(out_fill_dir, shape):
+    label_zarr = zarr.open(zarr.N5Store(os.path.join(out_fill_dir, "Fill_Label_Mask.n5"), 'w'))
+    label_ds = label_zarr.create_dataset(
+        "volume",
+        shape=shape,
+        chunks=(64, 64, 64),
+        dtype=np.uint8,
+        compressor=blosc.Blosc(cname="zstd", clevel=1, shuffle=blosc.SHUFFLE),
+        write_empty_chunks=False,
+        fill_value=0
+    )
+    gray_zarr = zarr.open(zarr.N5Store(os.path.join(out_fill_dir, "Fill_Gray_Mask.n5"), 'w'))
+    gray_ds = gray_zarr.create_dataset(
+        "volume",
+        shape=shape,
+        chunks=(64, 64, 64),
+        dtype=np.uint16,
+        compressor=blosc.Blosc(cname="zstd", clevel=1, shuffle=blosc.SHUFFLE),
+        write_empty_chunks=False,
+        fill_value=0
+    )
+    g_scores_zarr = zarr.open(zarr.DirectoryStore(os.path.join(out_fill_dir, "g_scores.zarr"), 'w'))
+    gscore_ds = g_scores_zarr.create_dataset(
+        "volume",
+        shape=shape,
+        chunks=(64, 64, 64),
+        dtype=float,
+        compressor=blosc.Blosc(cname="zstd", clevel=1, shuffle=blosc.SHUFFLE),
+        write_empty_chunks=False,
+        fill_value=np.nan
+    )
+    return label_ds, gray_ds, gscore_ds
+
+
+def _update_fill_stores(im, fill, label_ds, gray_ds, gscore_ds, label):
+    nodelist = fill.getNodeList()
+    nodes = []
+    scores = []
+    for n in nodelist:
+        nodes.append([n.z, n.y, n.x])
+        scores.append(n.distance)
+    nodes = np.array(nodes, dtype=int)
+    scores = np.array(scores, dtype=float)
+
+    node_idx = tuple(nodes.T)
+    gray_ds.vindex[node_idx] = im.vindex[node_idx]
+
+    old_scores = gscore_ds.vindex[node_idx]
+
+    new_idx = np.nonzero(np.isnan(old_scores))
+    if new_idx[0].size > 0:
+        new_nodes = tuple(nodes[new_idx].T)
+        label_ds.vindex[new_nodes] = label
+        gscore_ds.vindex[new_nodes] = scores[new_idx]
+
+    better_idx = np.nonzero(scores < old_scores)
+    if better_idx[0].size > 0:
+        better_nodes = tuple(nodes[better_idx].T)
+        label_ds.vindex[better_nodes] = label
+        gscore_ds.vindex[better_nodes] = scores[better_idx]
+
+
+def _range_with_end(start, end, step):
+    i = start
+    while i < end:
+        yield i
+        i += step
+    yield end
+
+
+def _chunk_tree(tree, seg_len=100):
+    paths = []
+    for b in snt.TreeAnalyzer(tree).getBranches():
+        idx = list(_range_with_end(0, b.size() - 1, seg_len))
+        for i in range(len(idx) - 1):
+            paths.append(b.getSection(idx[i], idx[i + 1]))
+    return paths
+
+
+def get_cost(im, cost_str, z_fudge=DEFAULT_Z_FUDGE):
+    Reciprocal = snt.Reciprocal
+    OneMinusErf = snt.OneMinusErf
+
+    params = {}
+
+    if cost_str == Cost.reciprocal.value:
+        mean = float(np.mean(im))
+        maximum = float(np.max(im))
+        cost = Reciprocal(mean, maximum)
+        params["fill_cost_function"] = {
+            "name": Cost.reciprocal.value,
+            "args": {"min": mean, "max": maximum},
+        }
+    elif cost_str == Cost.one_minus_erf.value:
+        mean = np.mean(im)
+        maximum = np.max(im)
+        std = np.std(im)
+        cost = OneMinusErf(maximum, mean, std)
+        # reduce z-score by a factor,
+        # so we can numerically distinguish more
+        # very bright voxels
+        cost.setZFudge(z_fudge)
+        params["fill_cost_function"] = {
+            "name": Cost.one_minus_erf.value,
+            "args": {
+                "max": maximum,
+                "average": mean,
+                "standardDeviation": std,
+                "zFudge": z_fudge,
+            },
+        }
+    else:
+        raise ValueError(f"Invalid cost {cost_str}")
+
+    return cost, params
+
+
+def get_cost_global(
+        cost_str, mean, std, cost_min, cost_max, z_fudge=DEFAULT_Z_FUDGE
+):
+    Reciprocal = snt.Reciprocal
+    OneMinusErf = snt.OneMinusErf
+    params = {}
+
+    if cost_str == Cost.reciprocal.value:
+        minimum = max(0, mean + cost_min * std)
+        maximum = mean + cost_max * std
+        cost = Reciprocal(minimum, maximum)
+        params["fill_cost_function"] = {
+            "name": Cost.reciprocal.value,
+            "args": {"min": minimum, "max": maximum},
+        }
+    elif cost_str == Cost.one_minus_erf.value:
+        maximum = mean + cost_max * std
+        cost = OneMinusErf(maximum, mean, std)
+        # reduce z-score by a factor,
+        # so we can numerically distinguish more
+        # very bright voxels
+        cost.setZFudge(z_fudge)
+        params["fill_cost_function"] = {
+            "name": Cost.one_minus_erf.value,
+            "args": {
+                "max": maximum,
+                "average": mean,
+                "standardDeviation": std,
+                "zFudge": z_fudge,
+            },
+        }
+    else:
+        raise ValueError(f"Invalid cost {cost_str}")
+
+    return cost, params
+
+
+def _path_values(img, path):
+    ProfileProcessor = snt.ProfileProcessor
+
+    shape = ProfileProcessor.Shape.CENTERLINE
+    processor = ProfileProcessor(img, path)
+    processor.setShape(shape)
+    vals = np.array(processor.call(), dtype=float)
+    return vals
+
+
+def _save_mask(mask, mask_dir, mask_name, as_n5=False):
     Views = imglib2.Views
     IJ = imagej1.IJ
     ImageJFunctions = imglib2.ImageJFunctions
 
     mask_path = os.path.join(mask_dir, mask_name)
     if as_n5:
-        save_n5(mask_path, mask)
+        _save_n5(mask_path, mask)
     else:
         # ImageJ treats the 3rd dimension as channel instead of depth,
         # so add a dummy Z dimension to the end (XYCZ) and swap dimensions 2 and 3 (XYZC).
@@ -328,7 +418,7 @@ def save_mask(mask, mask_dir, mask_name, as_n5=False):
         IJ.saveAsTiff(imp, mask_path)
 
 
-def save_n5(filepath, img, dataset="volume", block_size=None):
+def _save_n5(filepath, img, dataset="volume", block_size=None):
     from java.lang import Runtime
     from java.util.concurrent import Executors
 
@@ -344,22 +434,6 @@ def save_n5(filepath, img, dataset="volume", block_size=None):
     )
     exec.shutdown()
     logging.info("Finished saving N5.")
-
-
-def save_fill(fill_stack, path):
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-
-    lines = []
-    for plane in fill_stack:
-        for node in plane:
-            if node is None:
-                continue
-            s = f"{node.x} {node.y} {node.z}"
-            lines.append(s)
-
-    fill_str_bytes = str.encode("\n".join(lines))
-    with gzip.open(path, "wb") as f:
-        f.write(fill_str_bytes)
 
 
 def calc_stats(image_dir):
@@ -387,7 +461,9 @@ def calc_stats(image_dir):
     # get the overall standard deviation
     ssq: float = 0
     for i in range(len(variances)):
-        ssq += (counts[i] - 1) * variances[i] + (counts[i] - 1) * (means[i] - global_mean) ** 2
+        ssq += (counts[i] - 1) * variances[i] + (counts[i] - 1) * (
+                means[i] - global_mean
+        ) ** 2
     global_std: float = math.sqrt(ssq / (global_n - 1))
 
     return global_mean, global_std, global_min, global_max
@@ -431,31 +507,45 @@ def main():
         "--task",
         type=str,
         choices=["trees", "patches"],
-        default="patches",
-        help="task to run"
+        default="trees",
+        help="task to run",
     )
     parser.add_argument(
         "--structure",
         choices=["soma", "endpoints", "branches", "all"],
-        default="endpoints"
+        default="endpoints",
     )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
     parser.add_argument(
-        "--use-global-stats", action="store_true", default=False,
+        "--use-global-stats",
+        action="store_true",
+        default=False,
         help="use the statistics of all blocks for the cost function."
-             "Otherwise, the statistics for each block are computed individually."
+             "Otherwise, the statistics for each block are computed individually.",
     )
     parser.add_argument(
-        "--cost-min", type=float, default=-2, help="the value at which the cost function is maximized, "
-                                                   "expressed in number of standard deviations from the mean intensity."
+        "--cost-min",
+        type=float,
+        default=None,
+        help="the value at which the cost function is maximized, "
+             "expressed in number of standard deviations from the mean intensity.",
     )
     parser.add_argument(
-        "--cost-max", type=float, default=10, help="the value at which the cost function is minimized, expressed in"
-                                                   "number of standard deviations from the mean intensity."
+        "--cost-max",
+        type=float,
+        default=None,
+        help="the value at which the cost function is minimized, expressed in"
+             "number of standard deviations from the mean intensity.",
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=1
     )
 
     args = parser.parse_args()
-
+    if os.path.isdir(args.output):
+        shutil.rmtree(args.output)
     os.makedirs(args.output, exist_ok=True)
 
     with open(os.path.join(args.output, "args.json"), "w") as f:
@@ -484,27 +574,42 @@ def main():
     calibration.pixelDepth = voxel_size[2]
 
     if args.task == "trees":
-        fill_swcs(
-            args.input,
-            args.images,
-            args.output,
-            args.cost,
-            args.threshold,
-            calibration,
-            export_labels=True,
-            export_gray=True,
-            as_n5=args.n5,
-            use_global_stats=args.use_global_stats,
-            cost_min=args.cost_min,
-            cost_max=args.cost_max
-        )
+        if os.path.isdir(args.images) and not is_n5_zarr(args.images):
+            fill_image_dir(
+                args.input,
+                args.images,
+                args.output,
+                args.cost,
+                args.threshold,
+                calibration,
+                export_labels=True,
+                export_gray=True,
+                as_n5=args.n5,
+                use_global_stats=args.use_global_stats,
+                cost_min=args.cost_min,
+                cost_max=args.cost_max,
+            )
+        else:
+            fill_swc_dir_zarr(
+                swc_dir=args.input,
+                im_path=args.images,
+                out_fill_dir=args.output,
+                threshold=args.threshold,
+                cal=calibration,
+                key=args.dataset,
+                threads=args.threads,
+                cost_min=args.cost_min,
+                cost_max=args.cost_max
+            )
     elif args.task == "patches":
-        fill_patches(
+        fill_patch_dir(
             Path(args.input),
             args.cost,
             args.threshold,
             calibration,
-            args.structure
+            args.structure,
+            cost_min=args.cost_min,
+            cost_max=args.cost_max
         )
     else:
         raise Exception(f"Invalid task: {args.task}")
