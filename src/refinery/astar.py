@@ -404,7 +404,7 @@ def main():
 
     logging.info("Starting A-star...")
     t0 = time.time()
-    if os.path.isdir(args.image):
+    if os.path.isdir(args.image) and not is_n5_zarr(args.image):
         astar_batch(
             args.input,
             args.output,
