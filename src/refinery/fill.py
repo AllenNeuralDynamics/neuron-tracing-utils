@@ -486,6 +486,12 @@ def main():
         default=r"C:\Users\cameron.arshadi\Desktop\2018-08-01\endpoint-patches-meanshift\G-115_consensus\images"
     )
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="path to the n5/zarr dataset"
+    )
+    parser.add_argument(
         "--threshold",
         type=float,
         default=0.02,
