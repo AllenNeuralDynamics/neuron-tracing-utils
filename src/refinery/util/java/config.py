@@ -12,6 +12,9 @@ _mobie_io_version = os.getenv("MOBIE_IO_VERSION", _default_mobie_io_version)
 _default_java_opts = None
 _java_opts = os.getenv("JAVA_OPTS", _default_java_opts)
 
+_default_local_fiji = None
+_local_fiji = os.getenv("FIJI_PATH", _default_local_fiji)
+
 
 def set_snt_version(version):
     global _snt_version
@@ -46,3 +49,13 @@ def get_mobie_io_version():
 def get_java_opts():
     global _java_opts
     return _java_opts
+
+
+def get_local_fiji_path():
+    global _local_fiji
+    return _local_fiji
+
+
+def set_local_fiji_path(path):
+    global _local_fiji
+    _local_fiji = path
