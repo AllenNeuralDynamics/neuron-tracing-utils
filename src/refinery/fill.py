@@ -221,7 +221,12 @@ def fill_swc_dir_zarr(
     img = imgutil.get_hyperslice(
         ImgReaderFactory.create(im_path).load(im_path, key=key), ndim=3
     )
-    im = open_n5_zarr_as_ndarray(im_path)[key]
+    tif_file = None
+    if im_path.endswith((".tif", ".tiff")):
+        tif_file = tifffile.TiffFile(im_path)
+        im = zarr.open(tif_file.aszarr(), 'r')
+    else:
+        im = open_n5_zarr_as_ndarray(im_path)[key]
     cost = snt.Reciprocal(cost_min, cost_max)
     label_ds, gray_ds, gscore_ds = _create_datasets(out_fill_dir, im.shape)
     label = 1
@@ -234,6 +239,8 @@ def fill_swc_dir_zarr(
                 filler = fill_path(seg, img, cost, threshold, cal)
                 _update_fill_stores(im, filler.getFill(), label_ds, gray_ds, gscore_ds, label)
             label += 1
+    if tif_file is not None:
+        tif_file.close()
 
 
 def _create_datasets(out_fill_dir, shape):
