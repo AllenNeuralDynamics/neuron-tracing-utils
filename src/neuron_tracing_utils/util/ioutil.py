@@ -7,7 +7,7 @@ import zarr
 from tensorstore import TensorStore
 from zarr.errors import PathNotFoundError
 
-from refinery.util.java import imglib2, n5, aws
+from neuron_tracing_utils.util.java import imglib2, n5, aws
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import zarr
 
-from refinery.util import swcutil
+from neuron_tracing_utils.util import swcutil
 
 
 logging.basicConfig(format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")

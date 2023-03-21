@@ -1,4 +1,4 @@
-from refinery.util.java import imglib2
+from neuron_tracing_utils.util.java import imglib2
 
 import numpy as np
 

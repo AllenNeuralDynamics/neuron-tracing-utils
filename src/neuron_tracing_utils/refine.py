@@ -14,11 +14,11 @@ from scipy.interpolate import RegularGridInterpolator
 from tensorstore import TensorStore
 from tqdm import tqdm
 
-from refinery.util import ioutil
-from refinery.util.chunkutil import chunk_center
-from refinery.util.imgutil import get_hyperslice
-from refinery.util.ioutil import ImgReaderFactory, open_ts, is_n5_zarr
-from refinery.util.java import snt
+from neuron_tracing_utils.util import ioutil
+from neuron_tracing_utils.util.chunkutil import chunk_center
+from neuron_tracing_utils.util.imgutil import get_hyperslice
+from neuron_tracing_utils.util.ioutil import ImgReaderFactory, open_ts, is_n5_zarr
+from neuron_tracing_utils.util.java import snt
 
 
 class RefineMode(Enum):

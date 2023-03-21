@@ -5,7 +5,7 @@ import logging
 import os
 from pathlib import Path
 
-from refinery.util import swcutil
+from neuron_tracing_utils.util import swcutil
 
 import numpy as np
 

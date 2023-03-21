@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from refinery.util.java import snt
+from neuron_tracing_utils.util.java import snt
 
 import scyjava
 import tifffile

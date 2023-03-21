@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from refinery.util import swcutil
+from neuron_tracing_utils.util import swcutil
 
 
 def _align_to_cube(in_swc_dir, out_swc_dir):

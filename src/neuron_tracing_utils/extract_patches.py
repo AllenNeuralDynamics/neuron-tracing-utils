@@ -12,11 +12,11 @@ import tifffile
 from scipy.ndimage import gaussian_laplace
 from skimage.exposure import rescale_intensity
 
-from refinery.refine import mean_shift_point
-from refinery.transform import WorldToVoxel
-from refinery.util.chunkutil import chunk_center
-from refinery.util.ioutil import open_ts
-from refinery.util.java import snt
+from neuron_tracing_utils.refine import mean_shift_point
+from neuron_tracing_utils.transform import WorldToVoxel
+from neuron_tracing_utils.util.chunkutil import chunk_center
+from neuron_tracing_utils.util.ioutil import open_ts
+from neuron_tracing_utils.util.java import snt
 
 
 def parse_args():

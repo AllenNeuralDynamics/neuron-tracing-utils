@@ -1,7 +1,7 @@
-from refinery.util.java import snt
-from refinery.util.java import imglib2
-from refinery.util import chunkutil
-from refinery.util import imgutil
+from neuron_tracing_utils.util.java import snt
+from neuron_tracing_utils.util.java import imglib2
+from neuron_tracing_utils.util import chunkutil
+from neuron_tracing_utils.util import imgutil
 
 import numpy as np
 

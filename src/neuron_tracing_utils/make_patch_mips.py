@@ -15,7 +15,7 @@ from skimage.io import imsave
 from skimage.util import montage
 from tifffile import tifffile
 
-from refinery.util.java import snt
+from neuron_tracing_utils.util.java import snt
 
 
 def write_circle_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):

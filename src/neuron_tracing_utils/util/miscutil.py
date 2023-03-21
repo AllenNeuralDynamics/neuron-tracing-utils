@@ -5,11 +5,11 @@ from pathlib import Path
 
 import scyjava
 
-from refinery.util.java import n5
-from refinery.util.java import imglib2, imagej1
-from refinery.util import chunkutil
-from refinery.util import swcutil
-from refinery.transform import WorldToVoxel
+from neuron_tracing_utils.util.java import n5
+from neuron_tracing_utils.util.java import imglib2, imagej1
+from neuron_tracing_utils.util import chunkutil
+from neuron_tracing_utils.util import swcutil
+from neuron_tracing_utils.transform import WorldToVoxel
 
 import numpy as np
 

@@ -3,7 +3,8 @@ import os
 
 import scyjava
 
-from refinery.util.java import snt
+from neuron_tracing_utils.util.java import snt
+from neuron_tracing_utils.util.swcutil import *
 
 
 def print_stats(swc_dir):

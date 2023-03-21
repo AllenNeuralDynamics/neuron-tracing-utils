@@ -1,4 +1,4 @@
-from refinery.util.java import imglib2, snt
+from neuron_tracing_utils.util.java import imglib2, snt
 
 
 def get_hyperslice(img, ndim=3):

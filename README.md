@@ -1,8 +1,8 @@
 ## Installation
 ```shell
-conda create -n refinery -c conda-forge pyimagej openjdk=8
-conda activate refinery
-cd refinery
+conda create -n ntu -c conda-forge pyimagej openjdk=8
+conda activate ntu
+cd neuron-tracing-utils
 pip install .
 ```
 To use the command-line entry points below, make sure the conda environment is active.

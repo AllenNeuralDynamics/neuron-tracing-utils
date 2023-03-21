@@ -8,8 +8,8 @@ import numpy as np
 import scyjava
 from scipy.interpolate import splprep, splev
 
-from refinery.util import sntutil, swcutil
-from refinery.util.java import snt
+from neuron_tracing_utils.util import sntutil, swcutil
+from neuron_tracing_utils.util.java import snt
 
 
 def resample_tree(tree, node_spacing, degree=1):
