@@ -15,7 +15,7 @@ import numpy as np
 import jpype.imports
 
 from neuron_tracing_utils.util import sntutil, ioutil, imgutil
-from neuron_tracing_utils.util.ioutil import ImgReaderFactory
+from neuron_tracing_utils.util.ioutil import ImgReaderFactory, is_n5_zarr
 from neuron_tracing_utils.util.java import snt
 from neuron_tracing_utils.util.java import imglib2, imagej1
 from neuron_tracing_utils.transform import WorldToVoxel
@@ -154,7 +154,7 @@ def astar_swc(
         voxel_size,
         cost_str: str,
         key: str = None,
-        timeout: int = 600,  # s
+        timeout: int = -1,  # s
         threads: int = 1
 ):
     from java.util.concurrent import Executors
@@ -227,17 +227,14 @@ def astar_batch(
         in_swc_dir,
         out_swc_dir,
         im_dir,
-        calibration,
+        voxel_size,
         cost,
         key=None,
         threads=1,
 ):
     im_fmt = ioutil.get_file_format(im_dir)
-
-    in_swcs = []
-    out_swcs = []
-    im_paths = []
-
+    c = 0
+    t0 = time.time()
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith(".swc")]
         if not swcs:
@@ -249,31 +246,18 @@ def astar_batch(
 
         for f in swcs:
             in_swc = os.path.join(root, f)
-            in_swcs.append(in_swc)
             logging.info(f"Running A-star on {in_swc}")
 
             out_swc = os.path.join(
                 out_swc_dir, os.path.relpath(in_swc, in_swc_dir)
             )
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
-            out_swcs.append(out_swc)
 
-            im_paths.append(im_path)
+            astar_swc(in_swc, out_swc, im_path, voxel_size, cost, key, -1, threads)
 
-    times = len(in_swcs)
-
-    t0 = time.time()
-    with ThreadPoolExecutor(threads) as executor:
-        futures = []
-        for i in range(len(in_swcs)):
-            futures.append(executor.submit(astar_swc, in_swcs[i], out_swcs[i], im_paths[i], calibration, cost, key))
-        for fut in futures:
-            try:
-                fut.result()
-            except Exception as e:
-                logging.error(e)
+            c += 1
     t1 = time.time()
-    logging.info(f"processed {times} swcs in {t1 - t0}s")
+    logging.info(f"processed {c} swcs in {t1 - t0}s")
 
 
 def astar_swcs(
@@ -398,9 +382,6 @@ def main():
             "Either --transform or --voxel-size must be specified."
         )
     logging.info(f"Using voxel size {voxel_size}")
-    calibration.pixelWidth = voxel_size[0]
-    calibration.pixelHeight = voxel_size[1]
-    calibration.pixelDepth = voxel_size[2]
 
     logging.info("Starting A-star...")
     t0 = time.time()
@@ -409,7 +390,7 @@ def main():
             args.input,
             args.output,
             args.image,
-            calibration,
+            voxel_size,
             args.cost,
             args.dataset,
             args.threads,
