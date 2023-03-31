@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 
+from neuron_tracing_utils.util import ioutil
 from neuron_tracing_utils.util.java import snt
 
 import scyjava
@@ -16,13 +17,14 @@ from skimage.color import gray2rgb, label2rgb
 
 
 def write_orig_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
+    im_fmt = ioutil.get_file_format(im_dir)
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
             continue
         img_name = os.path.basename(root)
         img = tifffile.imread(
-            os.path.join(im_dir, img_name + ".tif")
+            os.path.join(im_dir, img_name + im_fmt)
         )
         img_rescale = exposure.rescale_intensity(img, in_range=(vmin, vmax))
         mip_rgb = gray2rgb(np.max(img_rescale, axis=0))
