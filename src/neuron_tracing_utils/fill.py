@@ -21,7 +21,7 @@ from numcodecs import blosc
 blosc.use_threads = False
 
 from neuron_tracing_utils.transform import WorldToVoxel
-from neuron_tracing_utils.util import imgutil
+from neuron_tracing_utils.util import imgutil, ioutil
 from neuron_tracing_utils.util.ioutil import ImgReaderFactory, is_n5_zarr, open_n5_zarr_as_ndarray
 from neuron_tracing_utils.util.java import imglib2, imagej1
 from neuron_tracing_utils.util.java import n5
@@ -88,13 +88,14 @@ def fill_image_dir(
 
         cost, params = get_cost_global(cost_str, mean, std, cost_min, cost_max)
 
+    im_fmt = ioutil.get_file_format(im_dir)
     for root, dirs, files in os.walk(swc_dir):
         swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
             continue
 
         img_name = os.path.basename(root)
-        tiff = os.path.join(im_dir, img_name + ".tif")
+        tiff = os.path.join(im_dir, img_name + im_fmt)
         logging.info(f"Generating masks for {tiff}")
         try:
             im = tifffile.imread(tiff)
@@ -554,6 +555,11 @@ def main():
         "--threads",
         type=int,
         default=1
+    )
+    parser.add_argument(
+        "--n5",
+        default=False,
+        action="store_true"
     )
 
     args = parser.parse_args()
