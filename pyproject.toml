@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "refinery"
 description = "Tools for refinement of sparse tracings into dense voxel-wise ground-truth."
 license = {text = "MIT"}
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3"
 ]
@@ -39,25 +39,25 @@ dev = [
 ]
 
 [project.scripts]
-transform = 'refinery.transform:main'
-align_to_cube = 'refinery.align_to_cube:main'
-fix_swcs = 'refinery.fix_swcs:main'
-refine = 'refinery.refine:main'
-astar = 'refinery.astar:main'
-fill = 'refinery.fill:main'
-render_mips = 'refinery.render_mips:main'
-resample = 'refinery.resample:main'
-stats = 'refinery.stats:main'
-organize_outputs = 'refinery.organize_outputs:main'
+transform = 'neuron_tracing_utils.transform:main'
+align_to_cube = 'neuron_tracing_utils.align_to_cube:main'
+fix_swcs = 'neuron_tracing_utils.fix_swcs:main'
+refine = 'neuron_tracing_utils.refine:main'
+astar = 'neuron_tracing_utils.astar:main'
+fill = 'neuron_tracing_utils.fill:main'
+render_mips = 'neuron_tracing_utils.render_mips:main'
+resample = 'neuron_tracing_utils.resample:main'
+stats = 'neuron_tracing_utils.stats:main'
+organize_outputs = 'neuron_tracing_utils.organize_outputs:main'
 
 [project.urls]
-source = "https://github.com/AllenNeuralDynamics/refinery"
+source = "https://github.com/AllenNeuralDynamics/neuron-tracing-utils"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = {attr = "refinery.__version__"}
+version = {attr = "neuron_tracing_utils.__version__"}
 readme = {file = ["README.md"]}
 
 [tool.black]
@@ -82,7 +82,7 @@ exclude = '''
 
 [tool.coverage.run]
 omit = ["*__init__*"]
-source = ["refinery", "tests"]
+source = ["neuron_tracing_utils", "tests"]
 
 [tool.coverage.report]
 exclude_lines = ["if __name__ == .__main__.:"]
