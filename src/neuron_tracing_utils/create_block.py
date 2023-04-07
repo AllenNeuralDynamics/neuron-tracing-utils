@@ -100,7 +100,7 @@ def main():
         arr = swcutil.swc_to_ndarray(args.swc)
         points = np.flip(arr[:, 2:5]).astype(int)
         block, origin_vx = from_points_bbox(ds, points)
-        block_shape = block.shape
+        block_shape = np.array(block.shape)
         print(f"block shape {block_shape}")
         arr[:, 2:5] -= np.flip(origin_vx)
         swcutil.ndarray_to_swc(
