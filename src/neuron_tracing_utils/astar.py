@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 
 import scyjava
-from jpype import JImplements, JOverride, JArray, JLong
+from jpype import JImplements, JOverride, JArray, JLong, JException
 from tqdm import tqdm
 import numpy as np
 import jpype.imports
@@ -141,9 +141,13 @@ def _get_max_neighbor(pos, img, radius=1) -> float:
 
     nhood_ra = DiamondShape(radius).neighborhoodsRandomAccessible(img).randomAccess()
     nhood = nhood_ra.setPositionAndGet(pos)
-    maximum = float("-inf")
+    maximum = img.randomAccess().setPositionAndGet(pos).get()
     for val in nhood:
-        maximum = max(maximum, float(val.get()))
+        try:
+            maximum = max(maximum, float(val.get()))
+        except JException as e:
+            print(e)
+            continue
     return maximum
 
 
@@ -372,7 +376,6 @@ def main():
     logging.basicConfig(format="%(asctime)s %(message)s")
     logging.getLogger().setLevel(args.log_level)
 
-    calibration = imagej1.Calibration()
     if args.transform is not None:
         voxel_size = WorldToVoxel(args.transform).scale
     elif args.voxel_size is not None:
