@@ -5,6 +5,8 @@ import argparse
 from enum import Enum
 from pathlib import Path
 
+from neuron_tracing_utils.util import ioutil
+from neuron_tracing_utils.util.ioutil import ImgReaderFactory
 from neuron_tracing_utils.util.java import snt
 import zarr
 import scyjava
@@ -52,16 +54,14 @@ def clip_graph(g, mini, maxi):
 
 
 def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
+    im_fmt = ioutil.get_file_format(imdir)
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith(".swc")]
         if not swcs:
             continue
-        #n5 = os.path.join(imdir, os.path.basename(root) + ".n5")
-        n5 = "s3://janelia-mouselight-imagery/carveouts/2018-08-01/fluorescence-near-consensus.n5/"
-        store = zarr.N5FSStore(n5)
-        z = zarr.open(store, 'r')
-        ds = z['volume-rechunked']
-        img_shape = np.array(list(reversed(ds.shape)), dtype=int)[0:3]
+        im_path = os.path.join(imdir, os.path.basename(root) + im_fmt)
+        img = ImgReaderFactory().create(im_path).load(im_path)
+        img_shape = np.array(img.dimensionsAsLongArray())
         print(img_shape)
         for f in swcs:
             swc = os.path.join(root, f)
