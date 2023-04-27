@@ -19,7 +19,7 @@ class OutOfBoundsMode(Enum):
     prune = "prune"
 
 
-def get_tiff_shape(tiffpath):
+def _get_tiff_shape(tiffpath):
     with tifffile.TiffFile(tiffpath) as tif:
         # Open as zarr-store in case we're dealing with
         # ImageJ hyperstacks.
@@ -32,7 +32,7 @@ def get_tiff_shape(tiffpath):
         return shape[axes]
 
 
-def prune_graph(g, mini, maxi):
+def _prune_graph(g, mini, maxi):
     to_remove = []
     for v in g.vertexSet():
         point = np.array([v.getX(), v.getY(), v.getZ()])
@@ -41,19 +41,60 @@ def prune_graph(g, mini, maxi):
     g.removeAllVertices(to_remove)
 
 
-def clip_graph(g, mini, maxi):
+def _clip_graph(g, mini, maxi):
     for v in g.vertexSet():
         point = np.array([v.getX(), v.getY(), v.getZ()])
         clipped = np.clip(point, mini, maxi)
         if not np.array_equal(point, clipped):
-            logging.info(f"input coords: {point}")
-            logging.info(f"adjusted coords: {clipped}")
+            print(f"input coords: {point}")
+            print(f"adjusted coords: {clipped}")
             v.x = clipped[0]
             v.y = clipped[1]
             v.z = clipped[2]
 
 
-def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
+def _fix_graph(graph, img_shape, mode):
+    mini = np.array([0, 0, 0])
+    maxi = img_shape - 1
+    num_points_before = graph.vertexSet().size()
+    if mode == OutOfBoundsMode.prune.value:
+        _prune_graph(graph, mini, maxi)
+        logging.info(
+            f"{num_points_before - graph.vertexSet().size()} points pruned"
+        )
+    elif mode == OutOfBoundsMode.clip.value:
+        _clip_graph(graph, mini, maxi)
+    else:
+        raise ValueError(f"Invalid mode {mode}")
+
+
+def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip"):
+    img = ImgReaderFactory().create(im_path).load(im_path)
+    img_shape = np.array(img.dimensionsAsLongArray())
+    swcs = [os.path.join(in_swc_dir, f) for f in os.listdir(in_swc_dir) if f.endswith(".swc")]
+    print("swcs: ", swcs)
+    for swc in swcs:
+        print(f"fixing {swc}")
+        out_swc = os.path.join(
+            out_swc_dir, os.path.relpath(swc, in_swc_dir)
+        )
+        Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
+
+        graph = snt.Tree(swc).getGraph()
+
+        _fix_graph(graph, img_shape, mode)
+
+        if graph.vertexSet().size() <= 1:
+            continue
+
+        components = _get_components_iterative(graph)
+        for i, c in enumerate(components):
+            if c.vertexSet().size() <= 1:
+                continue
+            c.getTree().saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
+
+
+def fix_swcs_batch(in_swc_dir, out_swc_dir, imdir, mode="clip"):
     im_fmt = ioutil.get_file_format(imdir)
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith(".swc")]
@@ -62,7 +103,6 @@ def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
         im_path = os.path.join(imdir, os.path.basename(root) + im_fmt)
         img = ImgReaderFactory().create(im_path).load(im_path)
         img_shape = np.array(img.dimensionsAsLongArray())
-        print(img_shape)
         for f in swcs:
             swc = os.path.join(root, f)
             logging.info(f"fixing {swc}")
@@ -73,30 +113,19 @@ def fix_swcs(in_swc_dir, out_swc_dir, imdir, mode="clip"):
 
             graph = snt.Tree(swc).getGraph()
 
-            mini = np.array([0, 0, 0])
-            maxi = img_shape - 1
-            num_points_before = graph.vertexSet().size()
-            if mode == OutOfBoundsMode.prune.value:
-                prune_graph(graph, mini, maxi)
-                logging.info(
-                    f"{num_points_before - graph.vertexSet().size()} points pruned"
-                )
-            elif mode == OutOfBoundsMode.clip.value:
-                clip_graph(graph, mini, maxi)
-            else:
-                raise ValueError(f"Invalid mode {mode}")
+            _fix_graph(graph, img_shape, mode)
 
             if graph.vertexSet().size() <= 1:
                 continue
 
-            components = get_components_iterative(graph)
+            components = _get_components_iterative(graph)
             for i, c in enumerate(components):
                 if c.vertexSet().size() <= 1:
                     continue
                 c.getTree().saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
 
 
-def get_components_iterative(graph):
+def _get_components_iterative(graph):
     roots = [v for v in graph.vertexSet() if graph.inDegreeOf(v) == 0]
     components = []
     for root in roots:
@@ -158,7 +187,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting fix...")
-    fix_swcs(args.input, args.output, args.images, args.mode)
+    fix_swcs_batch(args.input, args.output, args.images, args.mode)
     logging.info("Finished fix.")
 
 
