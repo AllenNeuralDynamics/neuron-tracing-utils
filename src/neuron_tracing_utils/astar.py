@@ -146,7 +146,6 @@ def _get_max_neighbor(pos, img, radius=1) -> float:
         try:
             maximum = max(maximum, float(val.get()))
         except JException as e:
-            print(e)
             continue
     return maximum
 
@@ -182,16 +181,9 @@ def astar_swc(
             continue
         edges.append(in_edges.iterator().next())
 
-    # Do threading in Java
-    # There seems to be a GIL issue with Python threads
     paths = []
-    futures = []
-    pool = Executors.newFixedThreadPool(threads)
     for edge in edges:
-        futures.append(pool.submit(_AstarCallable(edge, img, cost_str, voxel_size, timeout)))
-    for fut in tqdm(futures):
-        paths.append(fut.get())
-    pool.shutdown()
+        paths.append(_AstarCallable(edge, img, cost_str, voxel_size, timeout).call())
 
     for edge, path in zip(edges, paths):
         if path is None:
