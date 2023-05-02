@@ -143,6 +143,8 @@ def open_ts(
 ) -> TensorStore:
     # TensorStore opens n5 with axis order X,Y,Z, so get
     # a transposed view to be compatible with util code
+    if os.path.isdir(path) and not path.startswith("file://"):
+        path = "file://" + path
     spec = {
         "driver": _get_driver_string(path),
         "kvstore": path,
