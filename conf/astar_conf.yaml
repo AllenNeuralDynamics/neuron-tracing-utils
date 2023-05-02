@@ -1,0 +1,5 @@
+swcs: 'C:\Users\cameron.arshadi\Documents\training-data\exaSPIM_651324\swcs\block_003'
+image: 'C:\Users\cameron.arshadi\Documents\training-data\exaSPIM_651324\images\block_003.tif'
+output: 'C:\Users\cameron.arshadi\Documents\training-data\exaSPIM_651324\swcs\block_003_astar'
+voxel_size: [0.748, 0.748, 1.0]
+cost: "relative_difference"  # choices are "reciprocal" or "relative_difference"
