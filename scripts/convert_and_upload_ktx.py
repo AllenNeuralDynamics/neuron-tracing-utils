@@ -1,5 +1,7 @@
+import re
 import argparse
 import subprocess
+from enum import Enum
 from pathlib import Path
 
 
@@ -11,6 +13,10 @@ def upload_directory_to_s3(local_path, s3_bucket, s3_path):
 def convert_ktx(tiff_path, out, script_path, voxel_size, threads=8):
     command = f"python {script_path} -f {tiff_path} -o {out} -d 2ndmax -t {threads} --ktxonly --voxsize {voxel_size} --verbose"
     subprocess.run(command, check=True)
+
+
+class SubjectRegex(Enum):
+    subject = r"exaSPIM_(\d+)_"
 
 
 def main():
@@ -36,13 +42,20 @@ def main():
     # Parse the command line arguments
     args = parser.parse_args()
 
+    m = re.search(SubjectRegex.subject.value, args.input)
+    if not m:
+        raise Exception(f"could not parse subject ID from path: {args.input}")
+    subject = m.group(1)
+
     for f in Path(args.input).iterdir():
-        if not f.name.startswith("block"):
+        if not f.is_dir() or not f.name.startswith("block"):
             continue
+
         image_path = f / f"{f.name}.tiff"
         ktx_out = f / "octree"
+
         convert_ktx(image_path, ktx_out, args.script, args.voxel_size)
-        upload_directory_to_s3(ktx_out, args.bucket, f"{args.path}/{f.name}/octree")
+        upload_directory_to_s3(ktx_out, args.bucket, f"{args.path}/{f.name}/exaSPIM_{subject}_{f.name}")
 
 
 if __name__ == "__main__":
