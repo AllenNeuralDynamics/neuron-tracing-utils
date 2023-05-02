@@ -24,7 +24,8 @@ dependencies = [
     "gcsfs",
     "tensorstore",
     "jgo@git+https://github.com/scijava/jgo",
-    "tqdm"
+    "tqdm",
+    "argschema"
 ]
 
 [project.optional-dependencies]
