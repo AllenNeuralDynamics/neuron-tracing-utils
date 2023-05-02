@@ -46,6 +46,7 @@ def main():
     swc_dir = config["swcs"]
     voxel_size = config["voxel_size"]
     out_dir = config["output"]
+    cost = config["cost"]
 
     scyjava.start_jvm()
 
@@ -66,7 +67,7 @@ def main():
         astar_dir = os.path.join(temp_swc_dir, "astar")
         os.mkdir(astar_dir)
         # Run the A* search
-        astar_swcs(fixed_dir, astar_dir, image_path, voxel_size, "relative_difference")
+        astar_swcs(fixed_dir, astar_dir, image_path, voxel_size, cost)
         # Convert back to physical coordinates and copy to output directory
         transform_swcs(astar_dir, out_dir, transform, forward=False, swap_xy=False)
 
