@@ -182,7 +182,7 @@ def astar_swc(
         edges.append(in_edges.iterator().next())
 
     paths = []
-    for edge in edges:
+    for edge in tqdm(edges):
         paths.append(_AstarCallable(edge, img, cost_str, voxel_size, timeout).call())
 
     for edge, path in zip(edges, paths):
