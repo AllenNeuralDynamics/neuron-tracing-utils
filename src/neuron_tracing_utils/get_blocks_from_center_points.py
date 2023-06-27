@@ -10,6 +10,7 @@ import numpy as np
 import scyjava
 import tifffile
 import zarr
+from distributed import Client
 
 from neuron_tracing_utils.util import chunkutil
 from neuron_tracing_utils.util.java import snt
@@ -27,6 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 class InputParameters(argschema.ArgSchema):
     points_file = argschema.fields.Str()
     image_path = argschema.fields.Str()
+    dataset = argschema.fields.Str()
     out_dir = argschema.fields.Str()
     swc_dir = argschema.fields.Str()
     voxel_spacing = argschema.fields.List(argschema.fields.Float, cli_as_single_argument=True)
@@ -62,8 +64,7 @@ def crop_swc(swc, min, max):
         )
     ]
 
-    for v in to_remove:
-        g.removeVertex(v)
+    g.removeAllVertices(to_remove)
 
     if g.vertexSet().isEmpty():
         return None
@@ -107,7 +108,7 @@ def crop_swc_dir(swc_dir, out_dir, min, max):
             t.saveAsSWC(os.path.join(out_dir, Path(swc).name.replace(SWC_EXTENSION, f"-{ti}-cropped.swc")))
 
 
-def save_block(out_dir, i, block, image_path, block_origin, block_shape):
+def save_block(block_dir, block_idx, block, image_path, block_origin, block_shape):
     """
     Save block data to a file.
 
@@ -115,7 +116,7 @@ def save_block(out_dir, i, block, image_path, block_origin, block_shape):
     ----------
     out_dir : str
         Output directory.
-    i : int
+    block_idx : int
         Index of the block.
     block : ndarray
         Data to be saved.
@@ -126,9 +127,7 @@ def save_block(out_dir, i, block, image_path, block_origin, block_shape):
     block_shape : list
         Shape of the chunk.
     """
-    block_dir = os.path.join(out_dir, f"block_{i:03d}")
-    os.makedirs(block_dir, exist_ok=True)
-    tifffile.imwrite(os.path.join(block_dir, f"block_{i:03d}.tiff"), block)
+    tifffile.imwrite(os.path.join(block_dir, f"block_{block_idx:03d}.tiff"), block)
     meta = {
         "chunk_origin": list(reversed(block_origin.tolist())),
         "chunk_shape": list(reversed(block_shape.tolist())),
@@ -171,35 +170,41 @@ def main():
 
     scyjava.start_jvm()
 
+    client = Client()
+
     points = read_points_from_file(args['points_file'])
 
-    path = args['image_path']
-    z = zarr.open(zarr.N5FSStore(path), "r")
-    d = da.from_array(z['s0'])
+    im_path = args['image_path']
+    z = zarr.open(im_path, "r")
+    d = da.from_array(z[args['dataset']])
 
     out_dir = args['out_dir']
     os.makedirs(out_dir, exist_ok=True)
 
-    swc_dir = args['swc_dir']
-    voxel_spacing = np.array(args['voxel_spacing'])
-    shape = np.array(args['block_shape'])
+    voxel_spacing = np.array(list(reversed(args['voxel_spacing'])))  # XYZ -> ZYX
+    shape = np.array(list(reversed(args['block_shape'])))  # XYZ -> ZYX
 
     for i, point in enumerate(points):
-        point = np.array(list(reversed(point)))
+        point = np.array(list(reversed(point)))  # XYZ -> ZYX
         point_vx = point / voxel_spacing
 
         origin, corner = chunkutil.chunk_center(point_vx, shape)
 
         data = d[
+               ...,
                origin[0]: corner[0],
                origin[1]: corner[1],
                origin[2]: corner[2],
                ].compute()
 
-        save_block(out_dir, i, data, path, origin, shape)
+        block_dir = os.path.join(out_dir, f"block_{i:03d}")
+        os.makedirs(block_dir, exist_ok=True)
+        save_block(block_dir, i, data, im_path, origin, shape)
 
-        if swc_dir is not None:
-            crop_swc_dir(swc_dir, os.path.join(out_dir, f"block_{i:03d}"), origin, corner)
+        if "swc_dir" in args:
+            cropped_swc_dir = os.path.join(block_dir, "cropped-swcs")
+            os.makedirs(cropped_swc_dir, exist_ok=True)
+            crop_swc_dir(args["swc_dir"], cropped_swc_dir, origin, corner)
 
 
 if __name__ == "__main__":
