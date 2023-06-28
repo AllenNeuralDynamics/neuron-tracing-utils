@@ -26,13 +26,22 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class InputParameters(argschema.ArgSchema):
-    points_file = argschema.fields.Str()
-    image_path = argschema.fields.Str()
-    dataset = argschema.fields.Str()
-    out_dir = argschema.fields.Str()
-    swc_dir = argschema.fields.Str()
-    voxel_spacing = argschema.fields.List(argschema.fields.Float, cli_as_single_argument=True)
-    block_shape = argschema.fields.List(argschema.fields.Int, cli_as_single_argument=True)
+    points_file = argschema.fields.Str(required=True)
+    image_path = argschema.fields.Str(required=True)
+    dataset = argschema.fields.Str(required=True)
+    out_dir = argschema.fields.Str(required=True)
+    swc_dir = argschema.fields.Str(required=False)
+    voxel_spacing = argschema.fields.List(
+        argschema.fields.Float,
+        cli_as_single_argument=True,
+        required=True
+    )
+    block_shape = argschema.fields.List(
+        argschema.fields.Int,
+        cli_as_single_argument=True,
+        required=True
+    )
+    scale_swcs = argschema.fields.Boolean(required=False, default=False)
 
 
 def crop_swc(swc, min, max):
@@ -58,9 +67,9 @@ def crop_swc(swc, min, max):
     to_remove = [
         v for v in g.vertexSet() if
         not (
-            min[0] <= v.z < max[0] and
-            min[1] <= v.y < max[1] and
-            min[2] <= v.x < max[2]
+                min[0] <= v.z < max[0] and
+                min[1] <= v.y < max[1] and
+                min[2] <= v.x < max[2]
         )
     ]
 
@@ -79,7 +88,7 @@ def crop_swc(swc, min, max):
     return trees
 
 
-def crop_swc_dir(swc_dir, out_dir, min, max):
+def crop_swc_dir(swc_dir, out_dir, min, max, scale=None):
     """
     Crop all SWC files in a directory.
 
@@ -105,6 +114,9 @@ def crop_swc_dir(swc_dir, out_dir, min, max):
             continue
 
         for ti, t in enumerate(trees):
+            if scale is not None:
+                # t.scale(x_scale, y_scale, z_scale)
+                t.scale(scale[2], scale[1], scale[0])
             t.saveAsSWC(os.path.join(out_dir, Path(swc).name.replace(SWC_EXTENSION, f"-{ti}-cropped.swc")))
 
 
@@ -204,7 +216,13 @@ def main():
         if "swc_dir" in args:
             cropped_swc_dir = os.path.join(block_dir, "cropped-swcs")
             os.makedirs(cropped_swc_dir, exist_ok=True)
-            crop_swc_dir(args["swc_dir"], cropped_swc_dir, origin, corner)
+
+            scale = None
+            if args['scale_swcs']:
+                _LOGGER.info("Scaling SWCs")
+                scale = voxel_spacing
+
+            crop_swc_dir(args["swc_dir"], cropped_swc_dir, origin, corner, scale)
 
 
 if __name__ == "__main__":
