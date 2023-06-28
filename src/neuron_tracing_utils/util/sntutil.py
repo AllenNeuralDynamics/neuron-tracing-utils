@@ -1,9 +1,9 @@
-from neuron_tracing_utils.util.java import snt
-from neuron_tracing_utils.util.java import imglib2
-from neuron_tracing_utils.util import chunkutil
-from neuron_tracing_utils.util import imgutil
-
 import numpy as np
+
+from neuron_tracing_utils.util import imgutil
+from neuron_tracing_utils.util.chunkutil import chunk_center, minmax_to_interval
+from neuron_tracing_utils.util.java import imglib2
+from neuron_tracing_utils.util.java import snt
 
 
 def tree_to_ndarray(tree):
@@ -51,8 +51,11 @@ def swcpoint_to_sphere(img, swcPoint, radius):
 def swcpoint_to_block(img, swcpoint, side_lengths):
     return imglib2.Views.interval(
         img,
-        chunkutil.chunk_center(
-            [swcpoint.x, swcpoint.y, swcpoint.z], side_lengths
+        minmax_to_interval(
+            *chunk_center(
+                [swcpoint.x, swcpoint.y, swcpoint.z],
+                side_lengths
+            )
         ),
     )
 

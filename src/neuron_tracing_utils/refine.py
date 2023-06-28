@@ -33,9 +33,9 @@ def interpolate(img, ival=None):
         x = np.arange(0, img.shape[2], dtype=float)
     else:
         # interpolate on the interval that defines the image
-        z = np.arange(ival.min(0), ival.max(0), dtype=float)
-        y = np.arange(ival.min(1), ival.max(1), dtype=float)
-        x = np.arange(ival.min(2), ival.max(2), dtype=float)
+        z = np.arange(ival[0][0], ival[1][0], dtype=float)
+        y = np.arange(ival[0][1], ival[1][1], dtype=float)
+        x = np.arange(ival[0][2], ival[1][2], dtype=float)
     return RegularGridInterpolator((z, y, x), img)
 
 
@@ -63,22 +63,22 @@ def mean_shift_point(
     if crop_interval:
         if isinstance(im, dask.array.Array):
             im = im[
-                interval.min(0) : interval.max(0),
-                interval.min(1) : interval.max(1),
-                interval.min(2) : interval.max(2),
-            ].compute()
+                 interval[0][0]: interval[1][0],
+                 interval[0][1]: interval[1][1],
+                 interval[0][2]: interval[1][2],
+                 ].compute()
         elif isinstance(im, TensorStore):
             im = im[
-                interval.min(0) : interval.max(0),
-                interval.min(1) : interval.max(1),
-                interval.min(2) : interval.max(2),
-            ].read().result()
+                 interval[0][0]: interval[1][0],
+                 interval[0][1]: interval[1][1],
+                 interval[0][2]: interval[1][2],
+                 ].read().result()
         else:
             im = im[
-                interval.min(0) : interval.max(0),
-                interval.min(1) : interval.max(1),
-                interval.min(2) : interval.max(2),
-            ]
+                 interval[0][0]: interval[1][0],
+                 interval[0][1]: interval[1][1],
+                 interval[0][2]: interval[1][2],
+                 ]
 
     cx = swc_point.x
     cy = swc_point.y

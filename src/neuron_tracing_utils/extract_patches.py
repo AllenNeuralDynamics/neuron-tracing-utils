@@ -153,30 +153,31 @@ def parse_args():
 #         optimize_point(p, radius, img, side_lengths, max_value, min_value)
 
 
-def constrained_random_shift(interval, border):
-    sz = interval.min(0) + border[0]
-    sy = interval.min(1) + border[1]
-    sx = interval.min(2) + border[2]
-    ez = interval.max(0) - border[0]
-    ey = interval.max(1) - border[1]
-    ex = interval.max(2) - border[2]
+def constrained_random_shift(imin, imax, border):
+    sz = imin[0] + border[0]
+    sy = imin[1] + border[1]
+    sx = imin[2] + border[2]
+    ez = imax[0] - border[0]
+    ey = imax[1] - border[1]
+    ex = imax[2] - border[2]
     return np.array([random.randint(sz, ez), random.randint(sy, ey), random.randint(sx, ex)])
 
 
-def patches_from_points(darray, points, block_size, add_shift=True, shift_border=10):
+def patches_from_points(darray, points, block_size, add_shift=True, shift_border=None):
+    if shift_border is None:
+        shift_border = [10, 10, 10]
     logging.debug(f"Using window size: {block_size}")
     patches = []
     translated_points = []
     for p in points:
         arr = np.array([p.getZ(), p.getY(), p.getX()])
-        i = chunk_center(arr, block_size)
+        mn, mx = chunk_center(arr, block_size)
         if add_shift:
-            s = constrained_random_shift(i, shift_border)
-            i = chunk_center(s, block_size)
-        origin = np.array(list(i.minAsLongArray()))
-        offset = arr - origin
+            s = constrained_random_shift(mn, mx, shift_border)
+            mn, mx = chunk_center(s, block_size)
+        offset = arr - mn
         translated_points.append(snt.SWCPoint(0, 1, offset[2], offset[1], offset[0], 1.0, -1))
-        patch = darray[i.min(0):i.max(0), i.min(1):i.max(1), i.min(2):i.max(2)]
+        patch = darray[mn[0]:mx[0], mn[1]:mx[1], mn[2]:mx[2]]
         patches.append(patch)
     return patches, translated_points
 
@@ -205,15 +206,15 @@ def save_points(points, out_dir):
 
 
 def mean_shift_helper(point, img, radius=4, n_iter=1, do_log=False, log_sigma=1, voxel_size=None):
-    i = chunk_center([point.z, point.y, point.x], [128, 128, 128])
-    block = img[i.min(0):i.max(0), i.min(1):i.max(1), i.min(2):i.max(2)].read().result()
+    mn, mx = chunk_center([point.z, point.y, point.x], [128, 128, 128])
+    block = img[mn[0]:mx[0], mn[1]:mx[1], mn[2]:mx[2]].read().result()
     if do_log:
         sigmas = log_sigma / np.array(voxel_size)
         block = gaussian_laplace(block.astype(np.float64), sigmas, output=np.float64)
         # Only keep negative part of response (bright changes)
         block = rescale_intensity(np.abs(np.clip(block, a_min=None, a_max=0)), out_range=np.uint16)
         # print(block.min(), block.max())
-    mean_shift_point(point, block, radius, n_iter, interval=i)
+    mean_shift_point(point, block, radius, n_iter, interval=(mn, mx))
 
 
 def mean_shift_points(
@@ -229,9 +230,6 @@ def mean_shift_points(
                 fut.result()
             except Exception as e:
                 logging.error(f"Exception during mean-shift: {e}")
-
-
-
 
 
 def main():
