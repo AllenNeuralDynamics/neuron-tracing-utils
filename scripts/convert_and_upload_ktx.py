@@ -16,7 +16,7 @@ def convert_ktx(tiff_path, out, script_path, voxel_size, threads=8):
 
 
 class SubjectRegex(Enum):
-    subject = r"exaSPIM_(\d+)_"
+    subject = r"exaSPIM_(\d+)"
 
 
 def main():
