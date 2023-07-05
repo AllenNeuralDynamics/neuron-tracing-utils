@@ -23,6 +23,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.INFO)
 
 
 class InputParameters(argschema.ArgSchema):
@@ -42,6 +43,7 @@ class InputParameters(argschema.ArgSchema):
         required=True
     )
     scale_swcs = argschema.fields.Boolean(required=False, default=False)
+    start_index = argschema.fields.Int(required=False, default=0)
 
 
 def crop_swc(swc, min, max):
@@ -197,6 +199,7 @@ def main():
     shape = np.array(list(reversed(args['block_shape'])))  # XYZ -> ZYX
 
     for i, point in enumerate(points):
+        index = i + args['start_index']
         point = np.array(list(reversed(point)))  # XYZ -> ZYX
         point_vx = point / voxel_spacing
 
@@ -209,9 +212,9 @@ def main():
                origin[2]: corner[2],
                ].compute()
 
-        block_dir = os.path.join(out_dir, f"block_{i:03d}")
+        block_dir = os.path.join(out_dir, f"block_{index:03d}")
         os.makedirs(block_dir, exist_ok=True)
-        save_block(block_dir, i, data, im_path, origin, shape)
+        save_block(block_dir, index, data, im_path, origin, shape)
 
         if "swc_dir" in args:
             cropped_swc_dir = os.path.join(block_dir, "cropped-swcs")
