@@ -108,11 +108,7 @@ def fill_image_dir(
 
         logging.info(f"cost params: {params}")
 
-        # Wrap ndarray as imglib2 Img, using shared memory
-        # keep the reference in scope until the object is safe to be garbage collected
-        img, ref_store = imglyb.as_cell_img(
-            im, chunk_shape=im.shape, cache=100
-        )
+        img = ImgReaderFactory.create(tiff).load(tiff)
 
         filler_threads = []
         for f in swcs:
