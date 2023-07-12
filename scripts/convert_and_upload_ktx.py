@@ -6,12 +6,12 @@ from pathlib import Path
 
 
 def upload_directory_to_s3(local_path, s3_bucket, s3_path):
-    command = f"aws s3 sync {local_path} s3://{s3_bucket}/{s3_path}"
+    command = f'aws s3 sync "{local_path}" s3://{s3_bucket}/{s3_path}'
     subprocess.run(command, check=True, shell=True)
 
 
 def convert_ktx(tiff_path, out, script_path, voxel_size, threads=8):
-    command = f"python {script_path} -f {tiff_path} -o {out} -d 2ndmax -t {threads} --ktx --voxsize {voxel_size} --verbose"
+    command = f'python {script_path} -f "{tiff_path}" -o "{out}" -d 2ndmax -t {threads} --ktx --voxsize {voxel_size} --verbose'
     subprocess.run(command, check=True, shell=True)
 
 
