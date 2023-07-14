@@ -64,7 +64,7 @@ def convert_tiff_to_n5(
          compressor: the numcodecs compressor instance for the N5 dataset
     """
     LOGGER.info(f"converting {in_path}")
-    im = tifffile.imread(in_path)
+    im = tifffile.imread(in_path).squeeze()
     z = zarr.open(store=zarr.N5Store(out_path), mode='w')
     ds = z.create_dataset(
         array_key,
