@@ -25,7 +25,7 @@ def write_orig_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
         img_name = os.path.basename(root)
         img = tifffile.imread(
             os.path.join(im_dir, img_name + im_fmt)
-        )
+        ).squeeze()
         img_rescale = exposure.rescale_intensity(img, in_range=(vmin, vmax))
         mip_rgb = gray2rgb(np.max(img_rescale, axis=0))
         for f in swcs:
@@ -47,14 +47,23 @@ def write_orig_mips(swc_dir, im_dir, out_mip_dir, vmin=0.0, vmax=20000.0):
                     continue
         out_tiff = os.path.join(out_mip_dir, img_name + "_astar_MIP.png")
         Path(out_tiff).parent.mkdir(exist_ok=True, parents=True)
+
+        # Rescale the intensity values to the 0-255 range and convert to 8-bit
+        mip_rgb = exposure.rescale_intensity(mip_rgb, out_range=np.uint8)
+        mip_rgb = mip_rgb.astype(np.uint8)
+
         imsave(out_tiff, mip_rgb)
 
 
 def write_label_mips(im_dir, out_mip_dir):
     labels = [os.path.join(im_dir, f) for f in os.listdir(im_dir) if f.endswith("_Fill_Label_Mask.tif")]
     for l in labels:
-        img = tifffile.imread(l)
+        img = tifffile.imread(l).squeeze()
         mip_rgb = label2rgb(np.max(img, axis=0))
+
+        # Rescale the intensity values to the 0-255 range and convert to 8-bit
+        mip_rgb = exposure.rescale_intensity(mip_rgb, out_range=np.uint8)
+        mip_rgb = mip_rgb.astype(np.uint8)
 
         out_tiff = os.path.join(out_mip_dir, Path(l).name.replace(".tif", "_MIP.png"))
         Path(out_tiff).parent.mkdir(exist_ok=True, parents=True)
@@ -64,9 +73,13 @@ def write_label_mips(im_dir, out_mip_dir):
 def write_gray_mips(im_dir, out_mip_dir, vmin, vmax):
     labels = [os.path.join(im_dir, f) for f in os.listdir(im_dir) if f.endswith("_Fill_Gray_Mask.tif")]
     for l in labels:
-        img = tifffile.imread(l)
+        img = tifffile.imread(l).squeeze()
         img = exposure.rescale_intensity(img, in_range=(vmin, vmax))
         mip_rgb = gray2rgb(np.max(img, axis=0))
+
+        # Rescale the intensity values to the 0-255 range and convert to 8-bit
+        mip_rgb = exposure.rescale_intensity(mip_rgb, out_range=np.uint8)
+        mip_rgb = mip_rgb.astype(np.uint8)
 
         out_tiff = os.path.join(out_mip_dir, Path(l).name.replace(".tif", "_MIP.png"))
         Path(out_tiff).parent.mkdir(exist_ok=True, parents=True)
