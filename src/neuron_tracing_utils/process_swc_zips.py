@@ -1,16 +1,17 @@
+import argparse
+import glob
 import multiprocessing
 import os
-import glob
 import tempfile
 import zipfile
 from concurrent.futures import ProcessPoolExecutor
-import argparse
 from typing import Any
 
 import scyjava
+
 from neuron_tracing_utils.resample import resample_tree
+from neuron_tracing_utils.util import sntutil, swcutil
 from neuron_tracing_utils.util.java import snt
-from neuron_tracing_utils.util import swcutil, sntutil
 
 
 def unzip_file(zip_path: str, extract_path: str = None) -> None:
@@ -32,12 +33,17 @@ def unzip_file(zip_path: str, extract_path: str = None) -> None:
         print(f"No file found at {zip_path}")
         return
 
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(extract_path)
 
 
-def process_swc_file(swc_path: str, length_threshold: int = 200, voxel_size: tuple = (1, 1, 1),
-                     node_spacing: int = 20, radius: float = 1.0) -> Any:
+def process_swc_file(
+    swc_path: str,
+    length_threshold: int = 200,
+    voxel_size: tuple = (1, 1, 1),
+    node_spacing: int = 20,
+    radius: float = 1.0,
+) -> Any:
     """
     Processes an SWC file, performs resampling and filtering based on cable length.
 
@@ -68,7 +74,14 @@ def process_swc_file(swc_path: str, length_threshold: int = 200, voxel_size: tup
     return tree
 
 
-def process_zip_file(zip_path: str, output_dir: str) -> None:
+def process_zip_file(
+    zip_path: str,
+    output_dir: str,
+    length_threshold: int,
+    voxel_size: tuple,
+    node_spacing: int,
+    radius: float,
+) -> None:
     """
     Processes the files in a given zip file and saves the processed files to the output directory.
 
@@ -88,13 +101,26 @@ def process_zip_file(zip_path: str, output_dir: str) -> None:
             for file in files:
                 file_path = os.path.join(root, file)
 
-                tree = process_swc_file(file_path)
+                tree = process_swc_file(
+                    file_path,
+                    length_threshold,
+                    voxel_size,
+                    node_spacing,
+                    radius,
+                )
                 if tree is not None:
                     tree.saveAsSWC(os.path.join(output_dir, file))
 
 
-def process_all_zip_files(input_dir: str, output_dir: str, length_threshold: int, voxel_size: tuple,
-                          node_spacing: int, radius: float, max_workers: int = None) -> None:
+def process_all_zip_files(
+    input_dir: str,
+    output_dir: str,
+    length_threshold: int,
+    voxel_size: tuple,
+    node_spacing: int,
+    radius: float,
+    max_workers: int = None,
+) -> None:
     """
     Processes all zip files in the input directory using multiple workers and saves the processed files.
 
@@ -116,9 +142,19 @@ def process_all_zip_files(input_dir: str, output_dir: str, length_threshold: int
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for zip_file in zip_files:
-            futures.append(executor.submit(process_zip_file, zip_file, output_dir))
+            futures.append(
+                executor.submit(
+                    process_zip_file,
+                    zip_file,
+                    output_dir,
+                    length_threshold,
+                    voxel_size,
+                    node_spacing,
+                    radius,
+                )
+            )
         for i, fut in enumerate(futures):
-            print(f"Processing zip {i+1}/{total_files}")
+            print(f"Processing zip {i + 1}/{total_files}")
             try:
                 fut.result()
             except Exception as e:
@@ -126,18 +162,55 @@ def process_all_zip_files(input_dir: str, output_dir: str, length_threshold: int
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Process SWC files in zip format.')
-    parser.add_argument('-i', help='The input directory containing zip files.')
-    parser.add_argument('-o', help='The output directory to save processed files.')
-    parser.add_argument('--length_threshold', type=int, default=200, help='The minimum length of cable to consider.')
-    parser.add_argument('--voxel_size', nargs=3, type=float, default=(0.748, 0.748, 1.0), help='The scaling factor for each dimension.')
-    parser.add_argument('--node_spacing', type=int, default=20, help='The spacing between nodes after resampling.')
-    parser.add_argument('--radius', type=float, default=1.0, help='The radius to be set for the resampled tree.')
-    parser.add_argument('--workers', type=int, default=multiprocessing.cpu_count(), help='The number of worker processes to use.')
+    parser = argparse.ArgumentParser(
+        description="Process SWC files in zip format."
+    )
+    parser.add_argument("-i", help="The input directory containing zip files.")
+    parser.add_argument(
+        "-o", help="The output directory to save processed files."
+    )
+    parser.add_argument(
+        "--length_threshold",
+        type=int,
+        default=200,
+        help="The minimum length of cable to consider.",
+    )
+    parser.add_argument(
+        "--voxel_size",
+        nargs=3,
+        type=float,
+        default=(0.748, 0.748, 1.0),
+        help="The scaling factor for each dimension.",
+    )
+    parser.add_argument(
+        "--node_spacing",
+        type=int,
+        default=20,
+        help="The spacing between nodes after resampling.",
+    )
+    parser.add_argument(
+        "--radius",
+        type=float,
+        default=1.0,
+        help="The radius to be set for the resampled tree.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=multiprocessing.cpu_count(),
+        help="The number of worker processes to use.",
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.o):
         os.makedirs(args.o)
 
-    process_all_zip_files(args.i, args.o, args.length_threshold, args.voxel_size,
-                          args.node_spacing, args.radius, args.workers)
+    process_all_zip_files(
+        args.i,
+        args.o,
+        args.length_threshold,
+        args.voxel_size,
+        args.node_spacing,
+        args.radius,
+        args.workers,
+    )
