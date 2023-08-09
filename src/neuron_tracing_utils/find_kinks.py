@@ -125,6 +125,8 @@ def find_kinks(
     n_std: int = 2,
     min_angle: float = 100,
     max_height: float = 20,
+    max_workers: int = 8,
+
 ):
     """Find kinks in the given graph based on angles, heights, and voxel intensities.
 
@@ -144,17 +146,34 @@ def find_kinks(
         Minimum angle for detecting kinks. Default is 120.
     max_height : int, optional
         Maximum height for detecting kinks. Default is 20.
+    max_workers : int, optional
+        Maximum number of threads to use for parallel processing. Default is 8.
 
     Returns
     -------
     list
         Coordinates of detected kinks.
     """
+
     int_threshold = im_mean + n_std * im_std
+
     kink_coords = []
-    for v in g.vertexSet():
+
+    # Function to check if a vertex is a kink and return the coordinates if true
+    def _process_vertex(v):
         if vertex_is_kink(v, g, arr, min_angle, max_height, int_threshold):
-            kink_coords.append(v)
+            return _asarray(v)
+        return None
+
+    # Use a ThreadPoolExecutor to process the vertices concurrently
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = executor.map(_process_vertex, list(g.vertexSet()))
+
+    # Collect the results into the kink_coords list
+    for result in results:
+        if result is not None:
+            kink_coords.append(result)
+
     return kink_coords
 
 
