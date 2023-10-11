@@ -15,6 +15,7 @@ import numpy as np
 import jpype.imports
 
 from neuron_tracing_utils.util import sntutil, ioutil, imgutil
+from neuron_tracing_utils.util.graphutil import prune_contiguous_dups
 from neuron_tracing_utils.util.ioutil import ImgReaderFactory, is_n5_zarr
 from neuron_tracing_utils.util.java import snt
 from neuron_tracing_utils.util.java import imglib2, imagej1
@@ -210,6 +211,8 @@ def astar_swc(
             graph.addEdge(prev, tmp)
             prev = tmp
         graph.addEdge(tmp, edge.getTarget())
+
+    prune_contiguous_dups(graph)
 
     tree = graph.getTree()
     # Set a non-zero radius.
