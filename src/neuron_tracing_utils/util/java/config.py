@@ -1,12 +1,12 @@
 import os
 
-_default_snt_version = "4.1.13"
+_default_snt_version = "4.2.1"
 _snt_version = os.getenv("SNT_VERSION", _default_snt_version)
 
-_default_fiji_version = "2.9.0"
+_default_fiji_version = "2.14.0"
 _fiji_version = os.getenv("FIJI_VERSION", _default_fiji_version)
 
-_default_mobie_io_version = "2.0.10"
+_default_mobie_io_version = "2.1.2"
 _mobie_io_version = os.getenv("MOBIE_IO_VERSION", _default_mobie_io_version)
 
 _default_java_opts = None
