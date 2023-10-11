@@ -155,7 +155,7 @@ def refine_graph(
             try:
                 fut.result()
             except Exception as e:
-                logging.error(e)
+                logging.exception(e)
 
 
 def fit_path(path, img, radius):
@@ -293,9 +293,17 @@ def refine_swcs(
             tree = snt.Tree(swc_path)
 
             if mode == RefineMode.mean_shift.value:
-                im = open_ts(im_path, dataset=key, total_bytes_limit=500_000_000)
-                while im.ndim > 3:
-                    im = im[0, ...]
+                if im_path.endswith((".tif", ".tiff")):
+                    # TensorStore does not support 3D Tiffs at the moment
+                    # load as numpy array
+                    # FIXME
+                    im = tifffile.imread(im_path)
+                    crop = False
+                else:
+                    im = open_ts(im_path, dataset=key, total_bytes_limit=500_000_000)
+                    while im.ndim > 3:
+                        im = im[0, ...]
+                    crop = True
                 graph = tree.getGraph()
                 refine_graph(
                     graph,
@@ -303,7 +311,7 @@ def refine_swcs(
                     radius,
                     n_iter=mean_shift_iter,
                     n_threads=threads,
-                    crop_intervals=True,
+                    crop_intervals=crop,
                 )
                 graph.getTree().saveAsSWC(out_swc)
             elif mode == RefineMode.fit.value:
