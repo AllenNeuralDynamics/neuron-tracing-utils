@@ -26,7 +26,8 @@ dependencies = [
     "tensorstore",
     "jgo@git+https://github.com/scijava/jgo",
     "tqdm",
-    "argschema"
+    "argschema",
+    "seaborn"
 ]
 
 [project.optional-dependencies]

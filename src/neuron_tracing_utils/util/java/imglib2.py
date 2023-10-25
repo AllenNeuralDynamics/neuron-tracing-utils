@@ -74,6 +74,8 @@ def _java_setup():
     LoopBuilder = scyjava.jimport("net.imglib2.loops.LoopBuilder")
     global DifferenceOfGaussian
     DifferenceOfGaussian = scyjava.jimport("net.imglib2.algorithm.dog.DifferenceOfGaussian")
+    global LinAlgHelpers
+    LinAlgHelpers = scyjava.jimport("net.imglib2.util.LinAlgHelpers")
 
 
 scyjava.when_jvm_starts(_java_setup)

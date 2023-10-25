@@ -143,7 +143,7 @@ def open_ts(
 ) -> TensorStore:
     # TensorStore opens n5 with axis order X,Y,Z, so get
     # a transposed view to be compatible with util code
-    if os.path.isdir(path) and not path.startswith("file://"):
+    if os.path.exists(path) and not path.startswith("file://"):
         path = "file://" + path
     spec = {
         "driver": _get_driver_string(path),
@@ -153,13 +153,13 @@ def open_ts(
                 "total_bytes_limit": total_bytes_limit
             }
         },
-        "open": True,
+        # "open": True,
         "recheck_cached_data": "open"
     }
-    if dataset is not None:
+    if spec['driver'] != 'tiff' and dataset is not None:
         spec['path'] = dataset
     ds = ts.open(spec).result()
-    if spec['driver'] == "n5":
+    if spec['driver'] in ("n5", "neuroglancer_precomputed"):
         return ds.T
     return ds
 
@@ -167,7 +167,10 @@ def open_ts(
 def _get_driver_string(image_path: str):
     drivers = {
         ".zarr": "zarr",
-        ".n5": "n5"
+        ".n5": "n5",
+        ".tiff": "tiff",
+        ".tif": "tiff",
+        "": "neuroglancer_precomputed"
     }
     _, ext = os.path.splitext(image_path)
     return drivers[ext]

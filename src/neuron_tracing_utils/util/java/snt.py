@@ -54,6 +54,8 @@ def _java_setup():
     Frangi = scyjava.jimport("sc.fiji.snt.filter.Frangi")
     global ProfileProcessor
     ProfileProcessor = scyjava.jimport("sc.fiji.snt.analysis.ProfileProcessor")
+    global CircleCursor3D
+    CircleCursor3D = scyjava.jimport("sc.fiji.snt.util.CircleCursor3D")
 
 
 scyjava.when_jvm_starts(_java_setup)

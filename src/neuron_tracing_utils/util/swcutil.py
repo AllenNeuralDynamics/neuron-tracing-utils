@@ -29,7 +29,8 @@ def swc_to_ndarray(swc_path, add_offset=True):
     return swc_arr
 
 
-def ndarray_to_swc(swc_arr, out_path):
+def ndarray_to_swc(swc_arr, out_path, color=(1.0, 1.0, 1.0)):
+    header = f"# COLOR {color[0]},{color[1]},{color[2]}"
     lines = []
     for row in swc_arr:
         columns = [
@@ -45,6 +46,7 @@ def ndarray_to_swc(swc_arr, out_path):
         lines.append(line)
 
     with open(os.path.abspath(out_path), "w") as f:
+        f.write(header+"\n")
         f.write("\n".join(lines))
 
 
