@@ -2,11 +2,13 @@ import argparse
 import glob
 import multiprocessing
 import os
+import shutil
 import tempfile
 import zipfile
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any
+from typing import Any, List
 
+import boto3
 import scyjava
 
 from neuron_tracing_utils.resample import resample_tree
@@ -64,7 +66,8 @@ def process_swc_file(
 
     tree = g.getTree()
     tree.scale(*voxel_size)
-    resample_tree(tree, node_spacing)
+    if node_spacing > 0:
+        resample_tree(tree, node_spacing)
     tree.setRadii(radius)
 
     analyzer = snt.TreeAnalyzer(tree)
@@ -138,6 +141,7 @@ def process_all_zip_files(
     """
     zip_files = glob.glob(f"{input_dir}/*.zip")
     total_files = len(zip_files)
+    print(total_files)
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = []
@@ -161,18 +165,122 @@ def process_all_zip_files(
                 print(e)
 
 
+def zip_files(file_paths: List[str], zip_path: str):
+    """
+    Creates a zip file from the given file paths.
+
+    Parameters:
+        file_paths (List[str]): Paths of the files to be zipped.
+        zip_path (str): Path for the output zip file.
+    """
+    with zipfile.ZipFile(zip_path, "w") as zipf:
+        for file in file_paths:
+            zipf.write(file, os.path.basename(file))
+
+
+def upload_file_to_s3(
+    file_name: str, bucket: str, folder: str, object_name: str = None
+):
+    """
+    Upload a file to an S3 bucket in a specified folder.
+
+    Parameters:
+        file_name (str): File to upload
+        bucket (str): Bucket to upload to
+        folder (str): Folder within the bucket to upload the file
+        object_name (str, optional): S3 object name. If not specified, the file_name is used
+
+    Returns:
+        bool: True if file was uploaded, else False
+    """
+    if object_name is None:
+        object_name = os.path.basename(file_name)
+
+    s3_client = boto3.client("s3")
+    full_object_name = f"{folder.rstrip('/')}/{object_name}"
+
+    try:
+        s3_client.upload_file(file_name, bucket, full_object_name)
+    except Exception as e:
+        print(e)
+        return False
+    return True
+
+
+def upload_to_s3(
+    zip_paths: List[str], bucket: str, folder: str, n_workers: int = 8
+):
+    """
+    Uploads multiple files to a specific folder in an S3 bucket in parallel.
+
+    Parameters:
+        zip_paths (List[str]): Paths of the zip files to upload.
+        bucket (str): S3 bucket name.
+        folder (str): Folder within the bucket where files will be uploaded.
+        n_workers (int, optional): Number of workers to use.
+    """
+    with multiprocessing.Pool(n_workers) as pool:
+        results = [
+            pool.apply_async(upload_file_to_s3, (zip_path, bucket, folder))
+            for zip_path in zip_paths
+        ]
+        for r in results:
+            r.get()
+
+
+def create_zips(
+    input_dir: str, output_dir: str, n_workers: int = 8
+) -> List[str]:
+    """
+    Creates zip files from the processed SWC files in parallel.
+
+    Parameters:
+        input_dir (str): Directory containing processed SWC files.
+        output_dir (str): Directory to save the zip files.
+        n_workers (int, optional): Number of zip files to create.
+
+    Returns:
+        List[str]: Paths of the created zip files.
+    """
+    files = [f for f in glob.glob(f"{input_dir}/*.swc")]
+    total_files = len(files)
+    files_per_zip = total_files // n_workers
+
+    zip_paths = [
+        os.path.join(output_dir, f"swcs_{i}.zip") for i in range(n_workers)
+    ]
+    file_chunks = [
+        files[i * files_per_zip : (i + 1) * files_per_zip]
+        for i in range(n_workers)
+    ]
+
+    with multiprocessing.Pool(n_workers) as pool:
+        pool.starmap(zip_files, zip(file_chunks, zip_paths))
+
+    return zip_paths
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Process SWC files in zip format."
     )
-    parser.add_argument("-i", help="The input directory containing zip files.")
     parser.add_argument(
-        "-o", help="The output directory to save processed files."
+        "-i",
+        help="The input directory containing zip files.",
+    )
+    parser.add_argument(
+        "-o",
+        help="The output directory to save processed files.",
+    )
+    parser.add_argument("-b", help="S3 bucket name.", default="aind-open-data")
+    parser.add_argument(
+        "-f",
+        help="Folder within the bucket to upload the files.",
     )
     parser.add_argument(
         "--length_threshold",
         type=int,
-        default=200,
+        default=0,
         help="The minimum length of cable to consider.",
     )
     parser.add_argument(
@@ -185,7 +293,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--node_spacing",
         type=int,
-        default=20,
+        default=0,
         help="The spacing between nodes after resampling.",
     )
     parser.add_argument(
@@ -205,12 +313,26 @@ if __name__ == "__main__":
     if not os.path.isdir(args.o):
         os.makedirs(args.o)
 
+    swc_dir = os.path.join(args.o, "swcs")
+    os.makedirs(swc_dir, exist_ok=True)
+
+    zip_dir = os.path.join(args.o, "zips")
+    os.makedirs(zip_dir, exist_ok=True)
+
     process_all_zip_files(
         args.i,
-        args.o,
+        swc_dir,
         args.length_threshold,
         args.voxel_size,
         args.node_spacing,
         args.radius,
         args.workers,
     )
+
+    # Create zip files from processed SWC files
+    print("Creating zip files...")
+    zip_paths = create_zips(swc_dir, zip_dir, args.workers)
+
+    # Upload zip files to S3
+    print("Uploading zip files to S3...")
+    upload_to_s3(zip_paths, args.b, args.f, args.workers)
