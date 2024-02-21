@@ -84,7 +84,7 @@ def process_zip_file(
     voxel_size: tuple,
     node_spacing: int,
     radius: float,
-) -> None:
+) -> int:
     """
     Processes the files in a given zip file and saves the processed files to the output directory.
 
@@ -93,10 +93,11 @@ def process_zip_file(
         output_dir (str): The directory where the processed files will be saved.
 
     Returns:
-        None
+        int: The number of files filtered out.
     """
     scyjava.start_jvm()
 
+    filtered_count = 0
     with tempfile.TemporaryDirectory() as temp_dir:
         unzip_file(zip_path, temp_dir)
 
@@ -113,6 +114,10 @@ def process_zip_file(
                 )
                 if tree is not None:
                     tree.saveAsSWC(os.path.join(output_dir, file))
+                else:
+                    filtered_count += 1
+
+    return filtered_count
 
 
 def process_all_zip_files(
@@ -123,7 +128,7 @@ def process_all_zip_files(
     node_spacing: int,
     radius: float,
     max_workers: int = None,
-) -> None:
+) -> int:
     """
     Processes all zip files in the input directory using multiple workers and saves the processed files.
 
@@ -137,12 +142,13 @@ def process_all_zip_files(
         max_workers (int, optional): The maximum number of workers to use, default is the number of processors.
 
     Returns:
-        None
+        int: The number of files filtered out.
     """
     zip_files = glob.glob(f"{input_dir}/*.zip")
     total_files = len(zip_files)
-    print(total_files)
+    print("Total zip files: ", total_files)
 
+    filtered_count = 0
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for zip_file in zip_files:
@@ -160,9 +166,11 @@ def process_all_zip_files(
         for i, fut in enumerate(futures):
             print(f"Processing zip {i + 1}/{total_files}")
             try:
-                fut.result()
+                filtered_count += fut.result()
             except Exception as e:
                 print(e)
+
+    return filtered_count
 
 
 def zip_files(file_paths: List[str], zip_path: str):
@@ -229,12 +237,13 @@ def upload_to_s3(
 
 
 def create_zips(
-    input_dir: str, output_dir: str, n_workers: int = 8
+    files: list, output_dir: str, n_workers: int = 8
 ) -> List[str]:
     """
     Creates zip files from the processed SWC files in parallel.
 
     Parameters:
+        files: List[str]: Paths of the processed SWC files.
         input_dir (str): Directory containing processed SWC files.
         output_dir (str): Directory to save the zip files.
         n_workers (int, optional): Number of zip files to create.
@@ -242,9 +251,8 @@ def create_zips(
     Returns:
         List[str]: Paths of the created zip files.
     """
-    files = [f for f in glob.glob(f"{input_dir}/*.swc")]
-    total_files = len(files)
-    files_per_zip = total_files // n_workers
+
+    files_per_zip = len(files) // n_workers
 
     zip_paths = [
         os.path.join(output_dir, f"swcs_{i}.zip") for i in range(n_workers)
@@ -319,7 +327,7 @@ if __name__ == "__main__":
     zip_dir = os.path.join(args.o, "zips")
     os.makedirs(zip_dir, exist_ok=True)
 
-    process_all_zip_files(
+    filtered_count = process_all_zip_files(
         args.i,
         swc_dir,
         args.length_threshold,
@@ -329,9 +337,16 @@ if __name__ == "__main__":
         args.workers,
     )
 
+    files = [f for f in glob.glob(f"{swc_dir}/*.swc")]
+    total_files = len(files)
+
+    print("Total swcs before filtering: ", total_files + filtered_count)
+    print("Total swcs after filtering: ", total_files)
+    print("Total swcs filtered: ", filtered_count)
+
     # Create zip files from processed SWC files
     print("Creating zip files...")
-    zip_paths = create_zips(swc_dir, zip_dir, args.workers)
+    zip_paths = create_zips(files, zip_dir, args.workers)
 
     # Upload zip files to S3
     print("Uploading zip files to S3...")
