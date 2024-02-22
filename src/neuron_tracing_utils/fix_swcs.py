@@ -69,32 +69,30 @@ def _fix_graph(graph, img_shape, mode):
         raise ValueError(f"Invalid mode {mode}")
 
 
-def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip"):
+def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip", key=None):
     img = get_hyperslice(
-        ImgReaderFactory().create(im_path).load(im_path, key="0")
+        ImgReaderFactory().create(im_path).load(im_path, key=key)
     )
     img_shape = np.array(img.dimensionsAsLongArray())
-    swcs = [os.path.join(in_swc_dir, f) for f in os.listdir(in_swc_dir) if f.endswith(".swc")]
-    print("swcs: ", swcs)
-    for swc in swcs:
-        print(f"fixing {swc}")
-        out_swc = os.path.join(
-            out_swc_dir, os.path.relpath(swc, in_swc_dir)
-        )
-        Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
+    for root, dirs, files in os.walk(in_swc_dir):
+        swcs = [f for f in files if f.endswith(".swc")]
+        for swc in swcs:
+            print(f"fixing {swc}")
+            out_swc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
+            Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
-        graph = snt.Tree(swc).getGraph()
+            graph = snt.Tree(swc).getGraph()
 
-        _fix_graph(graph, img_shape, mode)
+            _fix_graph(graph, img_shape, mode)
 
-        if graph.vertexSet().size() <= 1:
-            continue
-
-        components = _get_components_iterative(graph)
-        for i, c in enumerate(components):
-            if c.vertexSet().size() <= 1:
+            if graph.vertexSet().size() <= 1:
                 continue
-            c.getTree().saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
+
+            components = _get_components_iterative(graph)
+            for i, c in enumerate(components):
+                if c.vertexSet().size() <= 1:
+                    continue
+                c.getTree().saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
 
 
 def fix_swcs_batch(in_swc_dir, out_swc_dir, imdir, mode="clip"):
@@ -168,6 +166,9 @@ def main():
         help="directory of images associated with the .swc files",
     )
     parser.add_argument(
+        "--dataset", type=str, help="key for the N5/Zarr dataset", default="0"
+    )
+    parser.add_argument(
         "--mode",
         type=str,
         choices=[mode.value for mode in OutOfBoundsMode],
@@ -190,7 +191,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting fix...")
-    fix_swcs(args.input, args.output, args.images, args.mode)
+    fix_swcs(args.input, args.output, args.images, args.mode, key=args.dataset)
     logging.info("Finished fix.")
 
 
