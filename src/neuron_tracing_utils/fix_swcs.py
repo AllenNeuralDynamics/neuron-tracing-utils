@@ -98,7 +98,7 @@ def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip", key=None):
 def fix_swcs_batch(in_swc_dir, out_swc_dir, imdir, mode="clip"):
     im_fmt = ioutil.get_file_format(imdir)
     for root, dirs, files in os.walk(in_swc_dir):
-        swcs = [f for f in files if f.endswith(".swc")]
+        swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         if not swcs:
             continue
         im_path = os.path.join(imdir, os.path.basename(root) + im_fmt)
