@@ -6,6 +6,7 @@ from enum import Enum
 from pathlib import Path
 
 from neuron_tracing_utils.util import ioutil
+from neuron_tracing_utils.util.imgutil import get_hyperslice
 from neuron_tracing_utils.util.ioutil import ImgReaderFactory
 from neuron_tracing_utils.util.java import snt
 import zarr
@@ -69,7 +70,9 @@ def _fix_graph(graph, img_shape, mode):
 
 
 def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip"):
-    img = ImgReaderFactory().create(im_path).load(im_path)
+    img = get_hyperslice(
+        ImgReaderFactory().create(im_path).load(im_path, key="0")
+    )
     img_shape = np.array(img.dimensionsAsLongArray())
     swcs = [os.path.join(in_swc_dir, f) for f in os.listdir(in_swc_dir) if f.endswith(".swc")]
     print("swcs: ", swcs)
@@ -187,7 +190,7 @@ def main():
     scyjava.start_jvm()
 
     logging.info("Starting fix...")
-    fix_swcs_batch(args.input, args.output, args.images, args.mode)
+    fix_swcs(args.input, args.output, args.images, args.mode)
     logging.info("Finished fix.")
 
 
