@@ -71,7 +71,7 @@ def process_swc_file(
     tree.setRadii(radius)
 
     analyzer = snt.TreeAnalyzer(tree)
-    if analyzer.getCableLength() < length_threshold:
+    if tree.getNodes().size() == 0 or analyzer.getCableLength() < length_threshold:
         return None
 
     return tree
