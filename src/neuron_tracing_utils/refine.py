@@ -84,7 +84,7 @@ def mean_shift_point(
     cy = swc_point.y
     cz = swc_point.z
 
-    logging.info(f"initial point: {[cz, cy, cx]}")
+    logging.debug(f"initial point: {[cz, cy, cx]}")
 
     interpolant = interpolate(im, interval)
 
@@ -128,7 +128,7 @@ def mean_shift_point(
     swc_point.y = cy
     swc_point.z = cz
 
-    logging.info(f"adjusted: {cz} {cy} {cx}")
+    logging.debug(f"adjusted: {cz} {cy} {cx}")
 
     if return_disp:
         return displacements
