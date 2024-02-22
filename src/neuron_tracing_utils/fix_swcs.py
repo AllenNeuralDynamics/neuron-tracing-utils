@@ -75,7 +75,7 @@ def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip", key=None):
     )
     img_shape = np.array(img.dimensionsAsLongArray())
     for root, dirs, files in os.walk(in_swc_dir):
-        swcs = [f for f in files if f.endswith(".swc")]
+        swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         for swc in swcs:
             print(f"fixing {swc}")
             out_swc = os.path.join(out_swc_dir, os.path.relpath(swc, in_swc_dir))
