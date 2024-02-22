@@ -198,6 +198,7 @@ def astar_swc(
         path_arr = sntutil.path_to_ndarray(path)
         # convert back to voxel coords
         path_arr /= voxel_size
+        path_arr = path_arr.astype(int)
         assert len(path_arr) > 1
 
         graph.removeEdge(edge)
