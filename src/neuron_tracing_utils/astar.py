@@ -12,7 +12,6 @@ import scyjava
 from jpype import JImplements, JOverride, JArray, JLong, JException
 from tqdm import tqdm
 import numpy as np
-import jpype.imports
 
 from neuron_tracing_utils.util import sntutil, ioutil, imgutil
 from neuron_tracing_utils.util.graphutil import prune_contiguous_dups
@@ -27,24 +26,6 @@ class Cost(Enum):
     relative_difference = "relative_difference"
 
 
-@JImplements("sc.fiji.snt.tracing.cost.Cost", deferred=True)
-class RelativeDifference:
-
-    def __init__(self, value_at_start):
-        self.value_at_start = value_at_start
-
-    @JOverride
-    def costMovingTo(self, new_value):
-        if new_value == self.value_at_start:
-            return 1.0
-        return 1.0 + (abs(new_value - self.value_at_start) / (new_value + self.value_at_start))
-
-    @JOverride
-    def minStepCost(self):
-        return 1.0
-
-
-@JImplements("java.util.concurrent.Callable", deferred=True)
 class _AstarCallable(object):
     def __init__(self, edge, img, cost_str, voxel_size, timeout):
         self.edge = edge
@@ -53,11 +34,11 @@ class _AstarCallable(object):
         self.voxel_size = voxel_size
         self.timeout = timeout
 
-    @JOverride
     def call(self):
         # declare Java classes we will use
         Euclidean = snt.Euclidean
         Reciprocal = snt.Reciprocal
+        RelativeDifference = snt.RelativeDifference
         BiSearch = snt.BiSearch
         SNT = snt.SNT
         ImgUtils = snt.ImgUtils
@@ -81,13 +62,16 @@ class _AstarCallable(object):
             # compute min-max of the subvolume where the start and goal nodes
             # are origin and corner, respectively, plus padding in each dimension
             pad_pixels = 20
-            subvolume = ImgUtils.subVolume(self.img, sx, sy, sz, tx, ty, tz, pad_pixels)
+            subvolume = ImgUtils.subVolume(
+                self.img, sx, sy, sz, tx, ty, tz, pad_pixels
+            )
             iterable = Views.iterable(subvolume)
             minmax = ComputeMinMax(iterable, DoubleType(), DoubleType())
             minmax.process()
             # reciprocal of intensity * distance is our cost for moving to a neighboring node
             cost = Reciprocal(
-                minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
+                minmax.getMin().getRealDouble(),
+                minmax.getMax().getRealDouble(),
             )
         elif self.cost_str == Cost.relative_difference.value:
             pos = JArray(JLong, 1)(3)
@@ -108,7 +92,6 @@ class _AstarCallable(object):
         else:
             raise Exception(f"Unsupported Cost {self.cost_str}")
 
-
         calibration = Calibration()
         calibration.pixelWidth = self.voxel_size[0]
         calibration.pixelHeight = self.voxel_size[1]
@@ -119,7 +102,19 @@ class _AstarCallable(object):
         heuristic = Euclidean(calibration)
 
         search = BiSearch(
-            self.img, calibration, sx, sy, sz, tx, ty, tz, self.timeout,  -1, SNT.SearchImageType.MAP, cost, heuristic,
+            self.img,
+            calibration,
+            sx,
+            sy,
+            sz,
+            tx,
+            ty,
+            tz,
+            self.timeout,
+            -1,
+            SNT.SearchImageType.MAP,
+            cost,
+            heuristic,
         )
 
         search.run()
@@ -140,7 +135,9 @@ def _get_max_neighbor(pos, img, radius=1) -> float:
     """
     DiamondShape = imglib2.DiamondShape
 
-    nhood_ra = DiamondShape(radius).neighborhoodsRandomAccessible(img).randomAccess()
+    nhood_ra = (
+        DiamondShape(radius).neighborhoodsRandomAccessible(img).randomAccess()
+    )
     nhood = nhood_ra.setPositionAndGet(pos)
     maximum = img.randomAccess().setPositionAndGet(pos).get()
     for val in nhood:
@@ -152,17 +149,15 @@ def _get_max_neighbor(pos, img, radius=1) -> float:
 
 
 def astar_swc(
-        in_swc: str,
-        out_swc: str,
-        img,
-        voxel_size,
-        cost_str: str,
-        key: str = None,
-        timeout: int = -1,  # s
-        threads: int = 1
+    in_swc: str,
+    out_swc: str,
+    img,
+    voxel_size,
+    cost_str: str,
+    key: str = None,
+    timeout: int = -1,  # s
+    threads: int = 1,
 ):
-    from java.util.concurrent import Executors
-
     print(f"processing {in_swc}")
 
     if isinstance(img, (str, Path)):
@@ -184,7 +179,9 @@ def astar_swc(
 
     paths = []
     for edge in tqdm(edges):
-        paths.append(_AstarCallable(edge, img, cost_str, voxel_size, timeout).call())
+        paths.append(
+            _AstarCallable(edge, img, cost_str, voxel_size, timeout).call()
+        )
 
     for edge, path in zip(edges, paths):
         if path is None:
@@ -224,13 +221,13 @@ def astar_swc(
 
 
 def astar_batch(
-        in_swc_dir,
-        out_swc_dir,
-        im_dir,
-        voxel_size,
-        cost,
-        key=None,
-        threads=1,
+    in_swc_dir,
+    out_swc_dir,
+    im_dir,
+    voxel_size,
+    cost,
+    key=None,
+    threads=1,
 ):
     im_fmt = ioutil.get_file_format(im_dir)
     c = 0
@@ -253,7 +250,9 @@ def astar_batch(
             )
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
-            astar_swc(in_swc, out_swc, im_path, voxel_size, cost, key, -1, threads)
+            astar_swc(
+                in_swc, out_swc, im_path, voxel_size, cost, key, -1, threads
+            )
 
             c += 1
     t1 = time.time()
@@ -261,20 +260,22 @@ def astar_batch(
 
 
 def astar_swcs(
-        in_swc_dir,
-        out_swc_dir,
-        im_path,
-        voxel_size,
-        cost,
-        key=None,
-        threads=1,
-        filter=None,
-        scales=None
+    in_swc_dir,
+    out_swc_dir,
+    im_path,
+    voxel_size,
+    cost,
+    key=None,
+    threads=1,
+    filter=None,
+    scales=None,
 ):
     reader = ImgReaderFactory.create(im_path)
-    img = imgutil.get_hyperslice(reader.load(im_path, key=key))
+    img = imgutil.get_hyperslice(reader.load(im_path, key=key, cache=20))
     if filter is not None:
-        img = imgutil.filter(img, scales, voxel_size, filter, lazy=True, threads=threads)
+        img = imgutil.filter(
+            img, scales, voxel_size, filter, lazy=True, threads=threads
+        )
 
     in_swcs = []
     out_swcs = []
@@ -298,7 +299,15 @@ def astar_swcs(
 
     t0 = time.time()
     for i in range(len(in_swcs)):
-        astar_swc(in_swcs[i], out_swcs[i], img, voxel_size, cost, key, threads=threads)
+        astar_swc(
+            in_swcs[i],
+            out_swcs[i],
+            img,
+            voxel_size,
+            cost,
+            key,
+            threads=threads,
+        )
     t1 = time.time()
     logging.info(f"processed {times} swcs in {t1 - t0}s")
 

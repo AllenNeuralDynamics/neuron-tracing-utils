@@ -30,6 +30,8 @@ def _java_setup():
     OneMinusErf = scyjava.jimport("sc.fiji.snt.tracing.cost.OneMinusErf")
     global Reciprocal
     Reciprocal = scyjava.jimport("sc.fiji.snt.tracing.cost.Reciprocal")
+    global RelativeDifference
+    RelativeDifference = scyjava.jimport("sc.fiji.snt.tracing.cost.RelativeDifference")
     global Dijkstra
     Dijkstra = scyjava.jimport("sc.fiji.snt.tracing.heuristic.Dijkstra")
     global Euclidean
