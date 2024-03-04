@@ -6,6 +6,7 @@ from enum import Enum
 from pathlib import Path
 
 from neuron_tracing_utils.util import ioutil
+from neuron_tracing_utils.util.graphutil import get_components_iterative
 from neuron_tracing_utils.util.imgutil import get_hyperslice
 from neuron_tracing_utils.util.ioutil import ImgReaderFactory
 from neuron_tracing_utils.util.java import snt
@@ -88,7 +89,7 @@ def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip", key=None):
             if graph.vertexSet().size() <= 1:
                 continue
 
-            components = _get_components_iterative(graph)
+            components = get_components_iterative(graph)
             for i, c in enumerate(components):
                 if c.vertexSet().size() <= 1:
                     continue
@@ -119,7 +120,7 @@ def fix_swcs_batch(in_swc_dir, out_swc_dir, imdir, mode="clip"):
             if graph.vertexSet().size() <= 1:
                 continue
 
-            components = _get_components_iterative(graph)
+            components = get_components_iterative(graph)
             for i, c in enumerate(components):
                 if c.vertexSet().size() <= 1:
                     continue
