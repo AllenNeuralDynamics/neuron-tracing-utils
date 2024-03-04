@@ -246,13 +246,14 @@ def main():
     )
     parser.add_argument(
         "--voxel-size",
-        type=float,
-        nargs=3,
+        type=str,
         help="Voxel size in microns.",
-        default=(1.0, 1.0, 1.0),
+        default="1.0,1.0,1.0",
     )
 
     args = parser.parse_args()
+
+    voxel_size = tuple(map(float, args.voxel_size.split(",")))
 
     scyjava.start_jvm()
 
@@ -271,7 +272,7 @@ def main():
                 swc_files,
                 [args] * len(swc_files),
                 [label_mask] * len(swc_files),
-                [args.voxel_size] * len(swc_files)
+                [voxel_size] * len(swc_files)
             )
         )
 
