@@ -6,6 +6,8 @@ import os
 import numpy as np
 import scyjava
 import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
 
 from neuron_tracing_utils.util import sntutil, swcutil
 from neuron_tracing_utils.util.ioutil import open_ts
@@ -221,6 +223,68 @@ def process_swc_file_wrapper(swc, args, label_mask, voxel_size):
     return data
 
 
+def save_boxplot(data, output_dir):
+    # Ensure the output directory exists
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+
+    plt.figure(figsize=(13, 10))
+
+    # Customizing the appearance of the mean marker
+    meanprops = {
+        "marker": "o",
+        "markerfacecolor": "white",
+        "markeredgecolor": "black",
+        "markersize": "10"
+    }
+
+    # Plotting horizontal box plots for each proportion with mean markers
+    ax1 = plt.subplot(3, 1, 1)  # Adjusting subplot orientation
+    sns.boxplot(
+        x=data['omit_proportion'],
+        showmeans=True,
+        meanprops=meanprops,
+        ax=ax1
+    )
+    ax1.set_title('Omitted edges')
+    ax1.set_xlabel('')  # Adjusting to remove the x-axis label
+
+    # Save the figure for the first plot
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'omit_proportion_boxplot.png'))
+    plt.close()  # Close the figure to free up memory
+
+    # Repeat the process for the other plots
+    plt.figure(figsize=(13, 10))
+    ax2 = plt.subplot(1, 1, 1)
+    sns.boxplot(
+        x=data['split_proportion'],
+        showmeans=True,
+        meanprops=meanprops,
+        ax=ax2
+    )
+    ax2.set_title('Split edges')
+    ax2.set_xlabel('')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'split_proportion_boxplot.png'))
+    plt.close()
+
+    plt.figure(figsize=(13, 10))
+    ax3 = plt.subplot(1, 1, 1)
+    sns.boxplot(
+        x=data['correct_proportion'],
+        showmeans=True,
+        meanprops=meanprops,
+        ax=ax3
+    )
+    ax3.set_title('Same Label edges')
+    ax3.set_xlabel('')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'correct_proportion_boxplot.png'))
+    plt.close()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Process SWC files and partition the graph based on a "
@@ -283,8 +347,12 @@ def main():
     df['split_proportion'] = df['split_length'] / df['total_length']
     df['correct_proportion'] = df['correct_length'] / df['total_length']
 
-    print(df)
+    df.sort_values(by="omit_proportion", ascending=False, inplace=True)
+    print(df.to_string(index=False))
+
     df.to_csv(os.path.join(args.out_dir, "results.csv"))
+
+    save_boxplot(df, args.out_dir)
 
 
 if __name__ == "__main__":
