@@ -27,23 +27,6 @@ class Cost(Enum):
     relative_difference = "relative_difference"
 
 
-@JImplements("sc.fiji.snt.tracing.cost.Cost", deferred=True)
-class RelativeDifference:
-
-    def __init__(self, value_at_start):
-        self.value_at_start = value_at_start
-
-    @JOverride
-    def costMovingTo(self, new_value):
-        if new_value == self.value_at_start:
-            return 1.0
-        return 1.0 + (abs(new_value - self.value_at_start) / (new_value + self.value_at_start))
-
-    @JOverride
-    def minStepCost(self):
-        return 1.0
-
-
 @JImplements("java.util.concurrent.Callable", deferred=True)
 class _AstarCallable(object):
     def __init__(self, edge, img, cost_str, voxel_size, timeout):
@@ -59,6 +42,7 @@ class _AstarCallable(object):
         Euclidean = snt.Euclidean
         Reciprocal = snt.Reciprocal
         BiSearch = snt.BiSearch
+        RelativeDifference = snt.RelativeDifference
         SNT = snt.SNT
         ImgUtils = snt.ImgUtils
         Views = imglib2.Views

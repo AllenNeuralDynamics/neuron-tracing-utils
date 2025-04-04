@@ -109,7 +109,7 @@ def _resample(points, node_spacing, degree=1):
     # Maintain input order
     points = points[np.sort(ind)]
     # Determine number of query points and their parameters
-    diff = np.diff(points, axis=0, prepend=points[-1].reshape((1, -1)))
+    diff = np.diff(points, axis=0)
     ss = np.power(diff, 2).sum(axis=1)
     length = np.sqrt(ss).sum()
     quo, rem = divmod(length, node_spacing)
