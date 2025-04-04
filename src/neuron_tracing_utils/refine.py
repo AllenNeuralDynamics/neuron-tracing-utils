@@ -316,7 +316,7 @@ def refine_swcs(
                 graph.getTree().saveAsSWC(out_swc)
             elif mode == RefineMode.fit.value:
                 reader = ImgReaderFactory.create(im_path)
-                img = get_hyperslice(reader.load(im_path, key=key), ndim=3)
+                img = get_hyperslice(reader.load(im_path, key=key, cache=50), ndim=3)
                 fitted = fit_tree(tree, img, radius=radius, threads=threads)
                 fitted.saveAsSWC(out_swc)
             else:
