@@ -32,13 +32,20 @@ def _java_setup():
     OneMinusErf = scyjava.jimport("sc.fiji.snt.tracing.cost.OneMinusErf")
     global Reciprocal
     Reciprocal = scyjava.jimport("sc.fiji.snt.tracing.cost.Reciprocal")
+
+    # Costs that are currently only available on SNT feature branches
     global RelativeDifference
-    RelativeDifference = scyjava.jimport("sc.fiji.snt.tracing.cost.RelativeDifference")
+    try:
+        RelativeDifference = scyjava.jimport("sc.fiji.snt.tracing.cost.RelativeDifference")
+    except Exception as e:
+        logging.warning(e)
+
     global GaussianMixtureCost
     try:
         GaussianMixtureCost = scyjava.jimport("sc.fiji.snt.tracing.cost.GaussianMixtureCost")
     except Exception as e:
         logging.warning(e)
+
     global Dijkstra
     Dijkstra = scyjava.jimport("sc.fiji.snt.tracing.heuristic.Dijkstra")
     global Euclidean

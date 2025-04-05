@@ -9,7 +9,7 @@ _fiji_version = os.getenv("FIJI_VERSION", _default_fiji_version)
 _default_bigdataviewer_omezarr_version = "0.2.4"
 _bigdataviewer_omezarr_version = os.getenv("BIGDATVIEWER_OMEZARR_VERSION", _default_bigdataviewer_omezarr_version)
 
-_default_java_opts = "--add-opens=java.base/java.lang=ALL-UNNAMED"
+_default_java_opts = None
 _java_opts = os.getenv("JAVA_OPTS", _default_java_opts)
 
 _default_local_fiji = None

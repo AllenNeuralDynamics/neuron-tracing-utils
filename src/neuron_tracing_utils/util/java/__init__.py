@@ -12,7 +12,7 @@ sjconf.add_option("-Djava.awt.headless=true")
 
 _java_opts = get_java_opts()
 if _java_opts is not None:
-    for opt in _java_opts.split(" "):
+    for opt in _java_opts.split():
         _logger.info(f"Adding Java option: {opt}")
         sjconf.add_option(opt)
 

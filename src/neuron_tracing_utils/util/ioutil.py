@@ -15,7 +15,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class TiffReader:
-
     def __init__(self):
         self.loader = imglib2.IJLoader()
 
@@ -26,7 +25,6 @@ class TiffReader:
 
 
 class N5Reader:
-
     @staticmethod
     def _get_reader(path):
         path = str(path)
@@ -92,12 +90,32 @@ class OmeZarrReader:
         return multiscale.getImg(int(key))
 
 
+class ZarrReader:
+    def load(self, path, **kwargs):
+        key = kwargs.get("key", "0")
+        factory = n5.N5Factory()
+        reader = factory.openZarrReader(path)
+        if "cache" in kwargs:
+            cache = kwargs["cache"]
+            if isinstance(cache, int):
+                dataset = n5.N5Utils.openWithBoundedSoftRefCache(
+                    reader, key, cache
+                )
+            elif isinstance(cache, bool) and cache:
+                dataset = n5.N5Utils.openWithDiskCache(reader, key)
+            else:
+                dataset = n5.N5Utils.open(reader, key)
+        else:
+            dataset = n5.N5Utils.open(reader, key)
+        return dataset
+
+
 class ImgReaderFactory:
     LOADERS = {
         ".tif": TiffReader,
         ".tiff": TiffReader,
         ".n5": N5Reader,
-        ".zarr": OmeZarrReader
+        ".zarr": ZarrReader
     }
 
     @staticmethod
