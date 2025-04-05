@@ -33,6 +33,13 @@ def _java_setup():
     global Reciprocal
     Reciprocal = scyjava.jimport("sc.fiji.snt.tracing.cost.Reciprocal")
 
+    # Costs that are currently only available on SNT feature branches
+    global RelativeDifference
+    try:
+        RelativeDifference = scyjava.jimport("sc.fiji.snt.tracing.cost.RelativeDifference")
+    except Exception as e:
+        logging.warning(e)
+
     global GaussianMixtureCost
     try:
         GaussianMixtureCost = scyjava.jimport("sc.fiji.snt.tracing.cost.GaussianMixtureCost")

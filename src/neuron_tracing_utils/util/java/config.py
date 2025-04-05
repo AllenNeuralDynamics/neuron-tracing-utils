@@ -14,6 +14,8 @@ _java_opts = os.getenv("JAVA_OPTS", _default_java_opts)
 
 _default_local_fiji = None
 _local_fiji = os.getenv("FIJI_PATH", _default_local_fiji)
+if _local_fiji is not None:
+    _local_fiji = os.path.realpath(os.path.abspath(os.path.expanduser(_local_fiji)))
 
 
 def set_snt_version(version):

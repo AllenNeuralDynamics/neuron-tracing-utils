@@ -18,6 +18,8 @@ def _java_setup():
     GzipCompression = scyjava.jimport(
         "org.janelia.saalfeldlab.n5.GzipCompression"
     )
+    global N5Factory
+    N5Factory = scyjava.jimport("org.janelia.saalfeldlab.n5.universe.N5Factory")
 
 
 scyjava.when_jvm_starts(_java_setup)

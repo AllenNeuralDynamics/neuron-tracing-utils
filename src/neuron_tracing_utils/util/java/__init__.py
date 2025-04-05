@@ -12,10 +12,9 @@ sjconf.add_option("-Djava.awt.headless=true")
 
 _java_opts = get_java_opts()
 if _java_opts is not None:
-    for opt in _java_opts.split(" "):
+    for opt in _java_opts.split():
         _logger.info(f"Adding Java option: {opt}")
         sjconf.add_option(opt)
-
 
 _fiji_path = get_local_fiji_path()
 if _fiji_path is not None:
@@ -39,7 +38,7 @@ if _fiji_path is not None:
         sjconf.endpoints.append("org.scijava:scijava-config:MANAGED")
 
     # Add additional ImageJ endpoints specific to PyImageJ.
-    sjconf.endpoints.append("io.scif:scifio-labeling:0.3.1")
+    #sjconf.endpoints.append("io.scif:scifio-labeling:0.3.1")
 
 else:
     _fiji_version = get_fiji_version()

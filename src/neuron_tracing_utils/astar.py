@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 
 import scyjava
-from jpype import JImplements, JOverride, JArray, JLong, JException
+from jpype import JArray, JLong, JException
 from tqdm import tqdm
 import numpy as np
 import jpype.imports
@@ -27,25 +27,7 @@ class Cost(Enum):
     relative_difference = "relative_difference"
 
 
-@JImplements("sc.fiji.snt.tracing.cost.Cost", deferred=True)
-class RelativeDifference:
-
-    def __init__(self, value_at_start):
-        self.value_at_start = value_at_start
-
-    @JOverride
-    def costMovingTo(self, new_value):
-        if new_value == self.value_at_start:
-            return 1.0
-        return 1.0 + (abs(new_value - self.value_at_start) / (new_value + self.value_at_start))
-
-    @JOverride
-    def minStepCost(self):
-        return 1.0
-
-
-@JImplements("java.util.concurrent.Callable", deferred=True)
-class _AstarCallable(object):
+class Astar(object):
     def __init__(self, edge, img, cost_str, voxel_size, timeout):
         self.edge = edge
         self.img = img
@@ -53,8 +35,7 @@ class _AstarCallable(object):
         self.voxel_size = voxel_size
         self.timeout = timeout
 
-    @JOverride
-    def call(self):
+    def run(self):
         # declare Java classes we will use
         Euclidean = snt.Euclidean
         Reciprocal = snt.Reciprocal
@@ -90,6 +71,8 @@ class _AstarCallable(object):
                 minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
             )
         elif self.cost_str == Cost.relative_difference.value:
+            RelativeDifference = snt.RelativeDifference
+            
             pos = JArray(JLong, 1)(3)
 
             pos[0] = sx
@@ -102,7 +85,7 @@ class _AstarCallable(object):
             pos[2] = tz
             end_val = _get_max_neighbor(pos, self.img)
 
-            target_val = (start_val + end_val) / 2
+            target_val = (start_val + end_val) / 2.0
 
             cost = RelativeDifference(target_val)
         else:
@@ -167,7 +150,7 @@ def astar_swc(
 
     if isinstance(img, (str, Path)):
         reader = ImgReaderFactory.create(img)
-        img = imgutil.get_hyperslice(reader.load(img, key=key))
+        img = imgutil.get_hyperslice(reader.load(img, key=key, cache=True))
 
     graph = snt.Tree(in_swc).getGraph()
 
@@ -184,7 +167,7 @@ def astar_swc(
 
     paths = []
     for edge in tqdm(edges):
-        paths.append(_AstarCallable(edge, img, cost_str, voxel_size, timeout).call())
+        paths.append(Astar(edge, img, cost_str, voxel_size, timeout).run())
 
     for edge, path in zip(edges, paths):
         if path is None:
@@ -272,7 +255,7 @@ def astar_swcs(
         scales=None
 ):
     reader = ImgReaderFactory.create(im_path)
-    img = imgutil.get_hyperslice(reader.load(im_path, key=key))
+    img = imgutil.get_hyperslice(reader.load(im_path, key=key, cache=True))
     if filter is not None:
         img = imgutil.filter(img, scales, voxel_size, filter, lazy=True, threads=threads)
 

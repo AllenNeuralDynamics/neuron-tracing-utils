@@ -15,14 +15,14 @@ dynamic = ["version", "readme"]
 dependencies = [
     "numpy",
     "scipy",
-    "zarr==2.18.2",
+    "zarr==2.18.3",
     "tifffile",
     "scikit-image",
     "toml",
-    "dask==2024.8.0",
-    "distributed==2024.8.0",
+    "dask==2025.3.0",
+    "distributed==2025.3.0",
     "dask-image",
-    "s3fs==2024.6.1",
+    "s3fs==2025.3.2",
     "boto3",
     "gcsfs",
     "tensorstore",
@@ -30,7 +30,7 @@ dependencies = [
     "argschema",
     "seaborn",
     "ome-zarr",
-    "xarray-multiscale"
+    "xarray-multiscale==1.2.0"
 ]
 
 [project.optional-dependencies]
