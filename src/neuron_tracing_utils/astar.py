@@ -141,8 +141,8 @@ def astar_swc(
         voxel_size,
         cost_str: str,
         key: str = None,
-        timeout: int = -1,  # s
-        threads: int = 1
+        timeout: int = -1,  # s,
+        cache=False
 ):
     from java.util.concurrent import Executors
 
@@ -150,9 +150,12 @@ def astar_swc(
 
     if isinstance(img, (str, Path)):
         reader = ImgReaderFactory.create(img)
-        img = imgutil.get_hyperslice(reader.load(img, key=key, cache=True))
+        img = imgutil.get_hyperslice(reader.load(img, key=key, cache=cache))
 
     graph = snt.Tree(in_swc).getGraph()
+    # remove duplicates up front
+    dups = prune_contiguous_dups(graph)
+    print(f"removed {len(dups)} dups")
 
     voxel_size = np.array(voxel_size)
 
@@ -214,6 +217,7 @@ def astar_batch(
         cost,
         key=None,
         threads=1,
+        cache=False,
 ):
     im_fmt = ioutil.get_file_format(im_dir)
     c = 0
@@ -236,7 +240,7 @@ def astar_batch(
             )
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
-            astar_swc(in_swc, out_swc, im_path, voxel_size, cost, key, -1, threads)
+            astar_swc(in_swc, out_swc, im_path, voxel_size, cost, key, -1, cache)
 
             c += 1
     t1 = time.time()
@@ -252,10 +256,11 @@ def astar_swcs(
         key=None,
         threads=1,
         filter=None,
-        scales=None
+        scales=None,
+        cache=False
 ):
     reader = ImgReaderFactory.create(im_path)
-    img = imgutil.get_hyperslice(reader.load(im_path, key=key, cache=True))
+    img = imgutil.get_hyperslice(reader.load(im_path, key=key, cache=cache))
     if filter is not None:
         img = imgutil.filter(img, scales, voxel_size, filter, lazy=True, threads=threads)
 
@@ -342,6 +347,12 @@ def main():
         default=None
     )
 
+    parser.add_argument(
+        "--cache-blocks",
+        type=int,
+        default=0,
+    )
+
     args = parser.parse_args()
 
     scyjava.start_jvm()
@@ -364,6 +375,13 @@ def main():
             "Either --transform or --voxel-size must be specified."
         )
     logging.info(f"Using voxel size {voxel_size}")
+
+    if args.cache_blocks == 0:
+        cache = False
+    elif args.cache_blocks < 0:
+        cache = True
+    else:
+        cache = args.cache_blocks
 
     logging.info("Starting A-star...")
     t0 = time.time()
@@ -388,6 +406,7 @@ def main():
             args.threads,
             args.filter,
             args.scales,
+            cache,
         )
     logging.info(f"Finished A-star. Took {time.time() - t0}s")
 

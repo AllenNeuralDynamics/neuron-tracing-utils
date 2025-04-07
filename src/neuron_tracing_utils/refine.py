@@ -278,6 +278,7 @@ def refine_swcs(
     threads=1,
     key=None,
     mean_shift_iter=1,
+    cache=False,
 ):
     for root, dirs, files in os.walk(in_swc_dir):
         swcs = [f for f in files if f.endswith(".swc")]
@@ -316,7 +317,7 @@ def refine_swcs(
                 graph.getTree().saveAsSWC(out_swc)
             elif mode == RefineMode.fit.value:
                 reader = ImgReaderFactory.create(im_path)
-                img = get_hyperslice(reader.load(im_path, key=key, cache=True), ndim=3)
+                img = get_hyperslice(reader.load(im_path, key=key, cache=cache), ndim=3)
                 fitted = fit_tree(tree, img, radius=radius, threads=threads)
                 fitted.saveAsSWC(out_swc)
             else:
@@ -357,6 +358,11 @@ def main():
     )
     parser.add_argument("--mean-shift-iter", type=int, default=3)
     parser.add_argument("--threads", type=int, default=8)
+    parser.add_argument(
+        "--cache-blocks",
+        type=int,
+        default=0,
+    )
     parser.add_argument("--log-level", type=int, default=logging.INFO)
 
     args = parser.parse_args()
@@ -371,6 +377,13 @@ def main():
     logging.getLogger().setLevel(args.log_level)
 
     scyjava.start_jvm()
+
+    if args.cache_blocks == 0:
+        cache = False
+    elif args.cache_blocks < 0:
+        cache = True
+    else:
+        cache = args.cache_blocks
 
     logging.info("Starting refinement...")
     if os.path.isdir(args.image) and not is_n5_zarr(args.image):
@@ -394,6 +407,7 @@ def main():
             args.threads,
             args.dataset,
             args.mean_shift_iter,
+            cache,
         )
     logging.info("Finished refinement.")
 
