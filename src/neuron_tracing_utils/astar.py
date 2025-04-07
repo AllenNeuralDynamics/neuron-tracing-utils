@@ -216,7 +216,6 @@ def astar_batch(
         voxel_size,
         cost,
         key=None,
-        threads=1,
         cache=False,
 ):
     im_fmt = ioutil.get_file_format(im_dir)
@@ -286,7 +285,7 @@ def astar_swcs(
 
     t0 = time.time()
     for i in range(len(in_swcs)):
-        astar_swc(in_swcs[i], out_swcs[i], img, voxel_size, cost, key, threads=threads)
+        astar_swc(in_swcs[i], out_swcs[i], img, voxel_size, cost, key)
     t1 = time.time()
     logging.info(f"processed {times} swcs in {t1 - t0}s")
 
@@ -393,7 +392,7 @@ def main():
             voxel_size,
             args.cost,
             args.dataset,
-            args.threads,
+            cache,
         )
     else:
         astar_swcs(
