@@ -35,14 +35,14 @@ def resample_tree(tree, node_spacing, degree=1):
     # when adding and removing paths in the tree.
     paths = list(tree.list())
     for path in paths:
+        start_joins = path.getStartJoins()
         # Get a resampled version of the path
-        resampled = resample_path(path, node_spacing, degree)
+        resampled = resample_path(path, node_spacing, degree, start_joins)
         # Add it to the tree.
         # Note we have not specified any connections yet,
         # so this is just a single un-branched segment.
         tree.add(resampled)
         # Get the parent of the input path, if any
-        start_joins = path.getStartJoins()
         if start_joins is not None:
             # Get the point of connection on the parent
             start_joins_point = path.getStartJoinsPoint()
@@ -76,26 +76,30 @@ def resample_tree(tree, node_spacing, degree=1):
 
 def resample_swcs(indir, outdir, node_spacing):
     for root, dirs, files in os.walk(indir):
-        swcs = [f for f in files if f.endswith(".swc")]
+        swcs = [f for f in files if f.endswith(".json") or f.endswith(".swc")]
         for f in swcs:
             swc_path = os.path.join(root, f)
             if not os.path.isfile(swc_path):
                 continue
             out_swc = os.path.join(outdir, os.path.relpath(swc_path, indir))
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
-            arr = swcutil.swc_to_ndarray(swc_path, add_offset=True)
-            tree = sntutil.ndarray_to_graph(arr).getTree()
+            tree = snt.Tree(swc_path)
             # resample the tree in-place
             resample_tree(tree, node_spacing)
             tree.setRadii(1.0)
             tree.saveAsSWC(out_swc)
 
 
-def resample_path(path, node_spacing, degree=1):
-    path_length = path.getLength()
-    if path_length <= node_spacing:
-        return path
+def resample_path(path, node_spacing, degree=1, start_joins=None):
     path_points = sntutil.path_to_ndarray(path)
+    if start_joins is not None:
+        # prepend the start joins point to the path points
+        sp = path.getStartJoinsPoint()
+        path_points = np.vstack(
+            (np.array([sp.getX(), sp.getY(), sp.getZ()]), path_points)
+        )
+    if len(path_points) < 2:
+        return path
     resampled = _resample(path_points, node_spacing, degree)
     respath = path.createPath()
     for p in resampled:
@@ -113,14 +117,15 @@ def _resample(points, node_spacing, degree=1):
     ss = np.power(diff, 2).sum(axis=1)
     length = np.sqrt(ss).sum()
     quo, rem = divmod(length, node_spacing)
-    samples = np.linspace(0, node_spacing * quo, int(quo + 1))
+    samples = np.linspace(0, node_spacing * quo, int(quo + 1), endpoint=True)
     if rem != 0:
         samples = np.append(samples, samples[-1] + rem)
     # Queries along the spline must be in range [0, 1]
     query_points = np.clip(samples / max(samples), a_min=0.0, a_max=1.0)
     # Create spline points and evaluate at queries
     tck, _ = splprep(points.T, k=degree)
-    return np.array(splev(query_points, tck)).T
+    result = np.array(splev(query_points, tck)).T
+    return result
 
 
 def main():
@@ -128,15 +133,21 @@ def main():
         description="Resample .swc files to have even spacing between consecutive nodes"
     )
     parser.add_argument(
-        "--input", type=str, help="directory of .swc files to resample"
+        "--input",
+        type=str,
+        help="directory of .swc files to resample",
+        default=r"C:\Users\cameron.arshadi\Downloads\non_uniform_jsons_for_Tiago\non_uniform_jsons_for_Tiago",
     )
     parser.add_argument(
-        "--output", type=str, help="directory to output resampled .swc files"
+        "--output",
+        type=str,
+        help="directory to output resampled .swc files",
+        default=r"C:\Users\cameron.arshadi\Downloads\non_uniform_jsons_for_Tiago_resampled_k3",
     )
     parser.add_argument(
         "--spacing",
         type=float,
-        default=5.0,
+        default=10.0,
         help="target spacing between consecutive pairs of points,"
         " in spatial units given by the SWC. For example, "
         "if your SWCs are represented in micrometers,"
@@ -148,8 +159,8 @@ def main():
 
     os.makedirs(args.output, exist_ok=True)
 
-    with open(os.path.join(args.output, 'args.json'), 'w') as f:
-        args.__dict__['script'] = parser.prog
+    with open(os.path.join(args.output, "args.json"), "w") as f:
+        args.__dict__["script"] = parser.prog
         json.dump(args.__dict__, f, indent=2)
 
     if args.spacing <= 0:
