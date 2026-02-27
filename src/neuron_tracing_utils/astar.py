@@ -62,17 +62,20 @@ class Astar(object):
             # compute min-max of the subvolume where the start and goal nodes
             # are origin and corner, respectively, plus padding in each dimension
             pad_pixels = 20
-            subvolume = ImgUtils.subVolume(self.img, sx, sy, sz, tx, ty, tz, pad_pixels)
+            subvolume = ImgUtils.subVolume(
+                self.img, sx, sy, sz, tx, ty, tz, pad_pixels
+            )
             iterable = Views.iterable(subvolume)
             minmax = ComputeMinMax(iterable, DoubleType(), DoubleType())
             minmax.process()
             # reciprocal of intensity * distance is our cost for moving to a neighboring node
             cost = Reciprocal(
-                minmax.getMin().getRealDouble(), minmax.getMax().getRealDouble()
+                minmax.getMin().getRealDouble(),
+                minmax.getMax().getRealDouble(),
             )
         elif self.cost_str == Cost.relative_difference.value:
             RelativeDifference = snt.RelativeDifference
-            
+
             pos = JArray(JLong, 1)(3)
 
             pos[0] = sx
@@ -91,7 +94,6 @@ class Astar(object):
         else:
             raise Exception(f"Unsupported Cost {self.cost_str}")
 
-
         calibration = Calibration()
         calibration.pixelWidth = self.voxel_size[0]
         calibration.pixelHeight = self.voxel_size[1]
@@ -102,7 +104,19 @@ class Astar(object):
         heuristic = Euclidean(calibration)
 
         search = BiSearch(
-            self.img, calibration, sx, sy, sz, tx, ty, tz, self.timeout,  -1, SNT.SearchImageType.MAP, cost, heuristic,
+            self.img,
+            calibration,
+            sx,
+            sy,
+            sz,
+            tx,
+            ty,
+            tz,
+            self.timeout,
+            -1,
+            SNT.SearchImageType.MAP,
+            cost,
+            heuristic,
         )
 
         search.run()
@@ -123,7 +137,9 @@ def _get_max_neighbor(pos, img, radius=1) -> float:
     """
     DiamondShape = imglib2.DiamondShape
 
-    nhood_ra = DiamondShape(radius).neighborhoodsRandomAccessible(img).randomAccess()
+    nhood_ra = (
+        DiamondShape(radius).neighborhoodsRandomAccessible(img).randomAccess()
+    )
     nhood = nhood_ra.setPositionAndGet(pos)
     maximum = img.randomAccess().setPositionAndGet(pos).get()
     for val in nhood:
@@ -135,14 +151,14 @@ def _get_max_neighbor(pos, img, radius=1) -> float:
 
 
 def astar_swc(
-        in_swc: str,
-        out_swc: str,
-        img,
-        voxel_size,
-        cost_str: str,
-        key: str = None,
-        timeout: int = -1,  # s,
-        cache=False
+    in_swc: str,
+    out_swc: str,
+    img,
+    voxel_size,
+    cost_str: str,
+    key: str = None,
+    timeout: int = -1,  # s,
+    cache=False,
 ):
     from java.util.concurrent import Executors
 
@@ -210,13 +226,13 @@ def astar_swc(
 
 
 def astar_batch(
-        in_swc_dir,
-        out_swc_dir,
-        im_dir,
-        voxel_size,
-        cost,
-        key=None,
-        cache=False,
+    in_swc_dir,
+    out_swc_dir,
+    im_dir,
+    voxel_size,
+    cost,
+    key=None,
+    cache=False,
 ):
     im_fmt = ioutil.get_file_format(im_dir)
     c = 0
@@ -239,7 +255,9 @@ def astar_batch(
             )
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
-            astar_swc(in_swc, out_swc, im_path, voxel_size, cost, key, -1, cache)
+            astar_swc(
+                in_swc, out_swc, im_path, voxel_size, cost, key, -1, cache
+            )
 
             c += 1
     t1 = time.time()
@@ -247,21 +265,24 @@ def astar_batch(
 
 
 def astar_swcs(
-        in_swc_dir,
-        out_swc_dir,
-        im_path,
-        voxel_size,
-        cost,
-        key=None,
-        threads=1,
-        filter=None,
-        scales=None,
-        cache=False
+    in_swc_dir,
+    out_swc_dir,
+    im_path,
+    voxel_size,
+    cost,
+    key=None,
+    threads=1,
+    filter=None,
+    scales=None,
+    cache=False,
+    timeout=-1,
 ):
     reader = ImgReaderFactory.create(im_path)
     img = imgutil.get_hyperslice(reader.load(im_path, key=key, cache=cache))
     if filter is not None:
-        img = imgutil.filter(img, scales, voxel_size, filter, lazy=True, threads=threads)
+        img = imgutil.filter(
+            img, scales, voxel_size, filter, lazy=True, threads=threads
+        )
 
     in_swcs = []
     out_swcs = []
@@ -285,7 +306,15 @@ def astar_swcs(
 
     t0 = time.time()
     for i in range(len(in_swcs)):
-        astar_swc(in_swcs[i], out_swcs[i], img, voxel_size, cost, key)
+        astar_swc(
+            in_swcs[i],
+            out_swcs[i],
+            img,
+            voxel_size,
+            cost,
+            key,
+            timeout=timeout,
+        )
     t1 = time.time()
     logging.info(f"processed {times} swcs in {t1 - t0}s")
 
@@ -325,31 +354,36 @@ def main():
         "--cost",
         type=str,
         choices=[cost.value for cost in Cost],
-        default=Cost.reciprocal.value
+        default=Cost.reciprocal.value,
     )
     parser.add_argument(
         "--filter",
         type=str,
         choices=["frangi", "tubeness"],
         default=None,
-        help="Filter to lazily apply to accessed regions of the volume"
+        help="Filter to lazily apply to accessed regions of the volume",
     )
     parser.add_argument(
         "--scales",
         type=float,
         nargs="+",
         help="A sequence of scales to integrate the filter response over. "
-             "A scale corresponds to the standard deviation of the "
-             "Gaussian kernel used to smooth the image prior to computing the Hessian."
-             "Each scale should roughly correspond to the radius of structures you want "
-             "to enhance, in physical units.",
-        default=None
+        "A scale corresponds to the standard deviation of the "
+        "Gaussian kernel used to smooth the image prior to computing the Hessian."
+        "Each scale should roughly correspond to the radius of structures you want "
+        "to enhance, in physical units.",
+        default=None,
     )
-
     parser.add_argument(
         "--cache-blocks",
         type=int,
         default=0,
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=-1,
+        help="Timeout for A* search in seconds. Use -1 for no timeout.",
     )
 
     args = parser.parse_args()
@@ -406,6 +440,7 @@ def main():
             args.filter,
             args.scales,
             cache,
+            args.timeout,
         )
     logging.info(f"Finished A-star. Took {time.time() - t0}s")
 
