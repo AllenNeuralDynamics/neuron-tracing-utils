@@ -79,7 +79,8 @@ def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip", key=None):
         swcs = [os.path.join(root, f) for f in files if f.endswith(".swc")]
         for swc in swcs:
             print(f"fixing {swc}")
-            graph = snt.Tree(swc).getGraph()
+            source_tree = snt.Tree(swc)
+            graph = source_tree.getGraph()
 
             _fix_graph(graph, img_shape, mode)
 
@@ -96,7 +97,11 @@ def fix_swcs(in_swc_dir, out_swc_dir, im_path, mode="clip", key=None):
                     os.path.relpath(swc, in_swc_dir).replace(".swc", suffix),
                 )
                 Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
-                c.getTree().saveAsSWC(out_swc)
+                c.updateVertexProperties()
+                # Rebuild from the typed SWCPoint vertices because c.getTree()
+                # flattens the original per-node SWC types.
+                component_tree = snt.Tree(c.vertexSet(), source_tree.getLabel())
+                component_tree.saveAsSWC(out_swc)
 
 
 def fix_swcs_batch(in_swc_dir, out_swc_dir, imdir, mode="clip"):
@@ -116,7 +121,8 @@ def fix_swcs_batch(in_swc_dir, out_swc_dir, imdir, mode="clip"):
             )
             Path(out_swc).parent.mkdir(exist_ok=True, parents=True)
 
-            graph = snt.Tree(swc).getGraph()
+            source_tree = snt.Tree(swc)
+            graph = source_tree.getGraph()
 
             _fix_graph(graph, img_shape, mode)
 
@@ -127,7 +133,11 @@ def fix_swcs_batch(in_swc_dir, out_swc_dir, imdir, mode="clip"):
             for i, c in enumerate(components):
                 if c.vertexSet().size() <= 1:
                     continue
-                c.getTree().saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
+                c.updateVertexProperties()
+                # Rebuild from the typed SWCPoint vertices because c.getTree()
+                # flattens the original per-node SWC types.
+                component_tree = snt.Tree(c.vertexSet(), source_tree.getLabel())
+                component_tree.saveAsSWC(out_swc.replace(".swc", f"-{i}.swc"))
 
 
 def main():
