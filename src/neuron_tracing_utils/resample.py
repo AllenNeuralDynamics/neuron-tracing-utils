@@ -92,6 +92,7 @@ def resample_swcs(indir, outdir, node_spacing):
 
 def resample_path(path, node_spacing, degree=1, start_joins=None):
     path_points = sntutil.path_to_ndarray(path)
+    original_type = path.getSWCType()
     if start_joins is not None:
         # prepend the start joins point to the path points
         sp = path.getStartJoinsPoint()
@@ -102,6 +103,9 @@ def resample_path(path, node_spacing, degree=1, start_joins=None):
         return path
     resampled = _resample(path_points, node_spacing, degree)
     respath = path.createPath()
+    # createPath() gives us a fresh Path geometry, so reapply the
+    # original SWC type explicitly to preserve the compartment label.
+    respath.setSWCType(original_type)
     for p in resampled:
         respath.addNode(snt.PointInImage(p[0], p[1], p[2]))
     return respath
