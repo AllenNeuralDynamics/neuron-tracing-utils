@@ -174,12 +174,16 @@ def fit_tree(tree, img, radius=1, threads=1):
         futures = [executor.submit(fit_path, path, img, radius) for path in paths]
         for i, fut in enumerate(tqdm(futures)):
             try:
-                fitted.append(fut.result())
+                fit = fut.result()
+                # Preserve each fitted path's original SWC type before the
+                # tree is rebuilt around the fitter output.
+                fit.setSWCType(paths[i].getSWCType())
+                fitted.append((paths[i], fit))
             except Exception as e:
                 logging.error(f"Error fitting path {paths[i].getName()}: {e}")
 
     # PathFitter is not thread safe, so need to rebuild the connections manually
-    for path, fit in zip(paths, fitted):
+    for path, fit in fitted:
         tree.add(fit)
         # Get the parent of the input path, if any
         start_joins = path.getStartJoins()
@@ -257,7 +261,11 @@ def refine_swcs_batch(
                     n_threads=threads,
                     crop_intervals=False,
                 )
-                graph.getTree().saveAsSWC(out_swc)
+                graph.updateVertexProperties()
+                # Rebuild from the typed SWCPoint vertices because graph.getTree()
+                # flattens the original per-node SWC types.
+                refined_tree = snt.Tree(graph.vertexSet(), tree.getLabel())
+                refined_tree.saveAsSWC(out_swc)
             elif mode == RefineMode.fit.value:
                 img = get_hyperslice(
                     ImgReaderFactory.create(im_path).load(im_path, key=key),
@@ -314,7 +322,11 @@ def refine_swcs(
                     n_threads=threads,
                     crop_intervals=crop,
                 )
-                graph.getTree().saveAsSWC(out_swc)
+                graph.updateVertexProperties()
+                # Rebuild from the typed SWCPoint vertices because graph.getTree()
+                # flattens the original per-node SWC types.
+                refined_tree = snt.Tree(graph.vertexSet(), tree.getLabel())
+                refined_tree.saveAsSWC(out_swc)
             elif mode == RefineMode.fit.value:
                 reader = ImgReaderFactory.create(im_path)
                 img = get_hyperslice(reader.load(im_path, key=key, cache=cache), ndim=3)
