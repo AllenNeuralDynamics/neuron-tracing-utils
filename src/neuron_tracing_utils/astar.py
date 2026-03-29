@@ -209,6 +209,7 @@ def astar_swc(
         # New graph vertices default to type 0, so inherit the child type
         # to preserve the original SWC labels along this subdivided edge.
         tmp.type = edge.getTarget().type
+        tmp.radius = max(float(edge.getTarget().radius), 1.0)
         graph.addEdge(edge.getSource(), tmp)
         prev = tmp
         for i in range(1, len(path_arr)):
@@ -216,20 +217,15 @@ def astar_swc(
                 path_arr[i][0], path_arr[i][1], path_arr[i][2]
             )
             tmp.type = edge.getTarget().type
+            tmp.radius = max(float(edge.getTarget().radius), 1.0)
             graph.addEdge(prev, tmp)
             prev = tmp
         graph.addEdge(tmp, edge.getTarget())
 
     prune_contiguous_dups(graph)
-    graph.updateVertexProperties()
-
-    # Rebuild from the typed SWCPoint vertices because graph.getTree()
-    # flattens mixed original SWC types during the graph-to-tree round-trip.
-    tree = snt.Tree(graph.vertexSet(), source_tree.getLabel())
-    # Set a non-zero radius.
-    # Some programs (JWS) fail to import .swc files with radii == 0
-    tree.setRadii(1.0)
-    tree.saveAsSWC(out_swc)
+    for vertex in graph.vertexSet():
+        vertex.radius = max(float(vertex.radius), 1.0)
+    sntutil.graph_to_swc(graph, out_swc)
 
 
 def astar_batch(

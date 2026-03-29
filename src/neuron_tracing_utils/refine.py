@@ -14,7 +14,7 @@ from scipy.interpolate import RegularGridInterpolator
 from tensorstore import TensorStore
 from tqdm import tqdm
 
-from neuron_tracing_utils.util import ioutil
+from neuron_tracing_utils.util import ioutil, sntutil
 from neuron_tracing_utils.util.chunkutil import chunk_center
 from neuron_tracing_utils.util.imgutil import get_hyperslice
 from neuron_tracing_utils.util.ioutil import ImgReaderFactory, open_ts, is_n5_zarr
@@ -261,11 +261,7 @@ def refine_swcs_batch(
                     n_threads=threads,
                     crop_intervals=False,
                 )
-                graph.updateVertexProperties()
-                # Rebuild from the typed SWCPoint vertices because graph.getTree()
-                # flattens the original per-node SWC types.
-                refined_tree = snt.Tree(graph.vertexSet(), tree.getLabel())
-                refined_tree.saveAsSWC(out_swc)
+                sntutil.graph_to_swc(graph, out_swc)
             elif mode == RefineMode.fit.value:
                 img = get_hyperslice(
                     ImgReaderFactory.create(im_path).load(im_path, key=key),
@@ -322,11 +318,7 @@ def refine_swcs(
                     n_threads=threads,
                     crop_intervals=crop,
                 )
-                graph.updateVertexProperties()
-                # Rebuild from the typed SWCPoint vertices because graph.getTree()
-                # flattens the original per-node SWC types.
-                refined_tree = snt.Tree(graph.vertexSet(), tree.getLabel())
-                refined_tree.saveAsSWC(out_swc)
+                sntutil.graph_to_swc(graph, out_swc)
             elif mode == RefineMode.fit.value:
                 reader = ImgReaderFactory.create(im_path)
                 img = get_hyperslice(reader.load(im_path, key=key, cache=cache), ndim=3)

@@ -59,5 +59,30 @@ def ndarray_to_swc(swc_arr, out_path, color=(1.0, 1.0, 1.0)):
         f.write("\n".join(lines))
 
 
+def write_swc_rows(rows, out_path, header_lines=None, float_precision=6):
+    lines = []
+    fmt = f"{{:.{float_precision}f}}"
+    for row in rows:
+        lines.append(
+            " ".join(
+                [
+                    str(int(row[0])),
+                    str(int(row[1])),
+                    fmt.format(float(row[2])),
+                    fmt.format(float(row[3])),
+                    fmt.format(float(row[4])),
+                    fmt.format(float(row[5])),
+                    str(int(row[6])),
+                ]
+            )
+        )
+
+    with open(os.path.abspath(out_path), "w") as f:
+        if header_lines:
+            for line in header_lines:
+                f.write(line.rstrip("\n") + "\n")
+        f.write("\n".join(lines))
+
+
 def path_to_name(swc_path):
     return os.path.splitext(os.path.basename(swc_path))[0]
