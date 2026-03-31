@@ -168,7 +168,8 @@ def astar_swc(
         reader = ImgReaderFactory.create(img)
         img = imgutil.get_hyperslice(reader.load(img, key=key, cache=cache))
 
-    graph = snt.Tree(in_swc).getGraph()
+    source_tree = snt.Tree(in_swc)
+    graph = source_tree.getGraph()
     # remove duplicates up front
     dups = prune_contiguous_dups(graph)
     print(f"removed {len(dups)} dups")
@@ -205,24 +206,26 @@ def astar_swc(
 
         graph.removeEdge(edge)
         tmp = graph.addVertex(path_arr[0][0], path_arr[0][1], path_arr[0][2])
+        # New graph vertices default to type 0, so inherit the child type
+        # to preserve the original SWC labels along this subdivided edge.
+        tmp.type = edge.getTarget().type
+        tmp.radius = max(float(edge.getTarget().radius), 1.0)
         graph.addEdge(edge.getSource(), tmp)
         prev = tmp
         for i in range(1, len(path_arr)):
             tmp = graph.addVertex(
                 path_arr[i][0], path_arr[i][1], path_arr[i][2]
             )
+            tmp.type = edge.getTarget().type
+            tmp.radius = max(float(edge.getTarget().radius), 1.0)
             graph.addEdge(prev, tmp)
             prev = tmp
         graph.addEdge(tmp, edge.getTarget())
 
     prune_contiguous_dups(graph)
-
-    tree = graph.getTree()
-    # Set a non-zero radius.
-    # Some programs (JWS) fail to import .swc files with radii == 0
-    tree.setSWCType("axon")
-    tree.setRadii(1.0)
-    tree.saveAsSWC(out_swc)
+    for vertex in graph.vertexSet():
+        vertex.radius = max(float(vertex.radius), 1.0)
+    sntutil.graph_to_swc(graph, out_swc)
 
 
 def astar_batch(
