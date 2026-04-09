@@ -275,6 +275,16 @@ def resample_path(path, node_spacing, degree=1, start_joins=None, children=None)
         degree,
         anchor_positions=anchor_positions,
     )
+
+    if start_joins is not None and len(resampled) > 1:
+        # The prepended join point is temporary context for resampling.
+        # Keep the parent-child connection represented by setStartJoin()
+        # instead of exporting it again as the first node on the child path.
+        resampled = resampled[1:]
+        anchor_node_indices = [
+            max(node_idx - 1, 0) for node_idx in anchor_node_indices
+        ]
+
     respath = path.createPath()
     # createPath() gives us a fresh Path geometry, so reapply the
     # original SWC type explicitly to preserve the compartment label.
